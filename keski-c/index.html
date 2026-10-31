@@ -1,3 +1,7 @@
+<!doctype html>
+<html lang="fi"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Keski-C pianokoulu</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -30,8 +34,11 @@
   --lacquer:#07090A; --felt:#7A1A25; --ivory:#ECEAE3; --ivory-edge:#A9A69D; --ebony:#0B0C0D;
   color-scheme:dark }
 
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
 html,body{height:100%}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.5}
 .wrap{max-width:1040px;margin:0 auto;padding-block:20px 40px;
   padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));
   display:flex;flex-direction:column;gap:18px}
@@ -111,15 +118,35 @@ svg.staff{display:block;width:100%;min-width:320px;height:auto}
 .target.black{background:var(--target);color:#2A1D00}
 .ok.white,.ok.black{background:var(--ok)!important;color:#fff}
 .bad.white,.bad.black{background:var(--bad)!important;color:#fff}
-.midc{position:absolute;top:6px;font-size:.6rem;color:#8A9295;font-weight:700;letter-spacing:.04em}
+.midc{position:absolute;bottom:46px;font-size:.6rem;color:#8A9295;font-weight:700;letter-spacing:.04em}
 
 .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 24px;color:var(--muted);font-size:.9rem}
 .tips h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;margin:0 0 4px;color:var(--ink)}
 .tips p{margin:0;max-width:60ch}
 kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;padding:0 5px;background:var(--surface);color:var(--ink)}
+/* microphone bar (always on the dark lacquer, so fixed light-on-dark colors) */
+.micbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.micbtn{font:inherit;font-weight:700;font-size:.82rem;border:1px solid #3A4448;background:#1C2225;color:#E6EBEA;
+  padding:6px 12px;border-radius:999px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+.micbtn .dot{width:8px;height:8px;border-radius:50%;background:#C8423B}
+.micbtn[aria-pressed="true"]{background:#7FD3A4;color:#0B1A12;border-color:#7FD3A4}
+.micbtn[aria-pressed="true"] .dot{background:#0B1A12;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.3}}
+.miclive{display:inline-flex;flex-wrap:wrap;align-items:center;gap:10px}
+.meter{width:72px;height:6px;border-radius:3px;background:#2A3236;position:relative;overflow:hidden}
+.meter i{position:absolute;left:0;top:0;bottom:0;width:0;background:#7FD3A4}
+.meter b{position:absolute;top:0;bottom:0;width:2px;left:0;background:#F0B43A}
+.heard{color:#E6EBEA;font-weight:700;font-variant-numeric:tabular-nums;min-width:10ch}
+.heard small{color:#AEB6B8;font-weight:400}
+.sens{display:inline-flex;align-items:center;gap:6px;color:#AEB6B8}
+.sens input{width:84px;accent-color:#7FD3A4}
+.micmsg{margin:0 0 8px;color:#F0B43A;font-size:.85rem}
+.micmsg a{color:#F0B43A}
 .celebrate{margin-top:10px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb, var(--ok) 15%, transparent);color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
+</head>
+<body>
 
 <div class="wrap">
   <header>
@@ -197,17 +224,27 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 
   <div class="piano">
     <div class="piano-top">
+      <div class="micbar">
+        <button class="micbtn" id="mic-btn" aria-pressed="false"><span class="dot"></span><span id="mic-label">Kuuntele pianoa</span></button>
+        <span class="miclive" id="mic-live" hidden>
+          <span class="meter" aria-hidden="true"><i id="mic-level"></i><b id="mic-gate"></b></span>
+          <span class="heard" id="mic-heard" aria-live="polite"></span>
+          <label class="sens" for="mic-sens">Herkkyys <input type="range" id="mic-sens" min="1" max="10" value="6"></label>
+        </span>
+      </div>
       <div class="row" style="gap:14px">
         <label class="chk" style="color:#AEB6B8"><input type="checkbox" id="opt-labels" checked><span>Sävelnimet</span></label>
         <label class="chk" style="color:#AEB6B8"><input type="checkbox" id="opt-kb" checked><span>Näppäimet</span></label>
       </div>
       <span id="midi-status">Soita hiirellä, sormella tai tietokoneen näppäimistöllä</span>
     </div>
+    <p class="micmsg" id="mic-msg" hidden></p>
     <div class="keys" id="keys"></div>
   </div>
 
   <div class="tips">
     <div><h3>H eikä B</h3><p>Suomessa valkoinen kosketin C:stä seitsemäs on <b>H</b>. Sen vasemmalla puolella oleva musta kosketin on <b>B</b>. Muut mustat ovat Cis, Dis, Fis ja Gis.</p></div>
+    <div><h3>Oikea piano</h3><p>Paina <b>Kuuntele pianoa</b> ja salli mikrofoni. Aseta puhelin tai tietokone pianon lähelle ja soita yksi sävel kerrallaan. Jos sovellus kuulee ääniä, joita et soittanut, pienennä herkkyyttä.</p></div>
     <div><h3>Keski-C</h3><p>Keski-C on pianon keskellä, kahden mustan koskettimen ryhmän vasemmalla puolella. Viivastolla se istuu oman apuviivansa päällä viivaston alapuolella.</p></div>
     <div><h3>Näppäimistö</h3><p><kbd>A</kbd> on keski-C, sitten <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>Ö</kbd> <kbd>Ä</kbd>. Mustat koskettimet ovat ylärivillä: <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd>.</p></div>
     <div><h3>Sormitus</h3><p>Peukalo on 1 ja pikkusormi 5. C-asemassa oikean käden sormet lepäävät koskettimilla C, D, E, F ja G.</p></div>
@@ -249,7 +286,7 @@ function audio(){
 }
 function noteOn(m, vel=0.9){
   const c = audio(); if (!c) return;
-  noteOff(m, true);
+  noteOff(m, true); lastSynth = performance.now();
   const t = c.currentTime, f = 440*Math.pow(2,(m-69)/12);
   const g = c.createGain(), lp = c.createBiquadFilter();
   lp.type = "lowpass"; lp.frequency.setValueAtTime(Math.min(f*10, 12000), t); lp.frequency.setTargetAtTime(f*2.5, t, 0.4);
@@ -269,8 +306,11 @@ function noteOff(m, now){
   v.g.gain.cancelScheduledValues(t); v.g.gain.setValueAtTime(v.g.gain.value, t);
   v.g.gain.setTargetAtTime(0, t, now ? 0.01 : 0.12);
   try{ v.o1.stop(t+0.8); v.o2.stop(t+0.8); }catch(e){}
-  voices.delete(m);
+  voices.delete(m); lastSynth = performance.now();
 }
+let lastSynth = -1e9;
+// The mic must not "hear" the app's own synth: ignore it while synth notes ring and shortly after.
+const synthBusy = () => voices.size > 0 || performance.now() - lastSynth < 450;
 
 /* ---------- keyboard ---------- */
 const keysEl = document.getElementById("keys");
@@ -323,7 +363,7 @@ window.addEventListener("keydown", e => {
 });
 window.addEventListener("keyup", e => { const m = KEYMAP[e.code]; if (m != null) release(m); });
 
-function press(m, vel){ noteOn(m, vel); keyEls[m]?.classList.add("down"); onNote(m); }
+function press(m, vel, silent){ if (!silent) noteOn(m, vel); keyEls[m]?.classList.add("down"); onNote(m); }
 function release(m){ noteOff(m); keyEls[m]?.classList.remove("down"); }
 
 /* MIDI keyboard (works where the browser allows it) */
@@ -522,6 +562,130 @@ function renderFree(){
 }
 $("free-clear").onclick = () => { freeNotes = []; renderFree(); };
 
+/* ---------- pitch detection from the microphone ---------- */
+// DETECTOR-START
+// YIN pitch detection + onset detection, for one note at a time from an acoustic piano.
+function createDetector(sr){
+  const W = 1024, minTau = Math.floor(sr/2200), maxTau = Math.floor(sr/75); // ~75 Hz (D2) .. 2200 Hz (C7)
+  const N = W + maxTau;
+  const d = new Float32Array(maxTau+2), cm = new Float32Array(maxTau+2);
+  let floor = 0.002, recent = [0,0,0], sounding = null, armed = null, cand = null, lastOnset = -1, sens = 0.55;
+  function yin(x, off){
+    for (let tau=1; tau<=maxTau+1; tau++){
+      let s = 0; for (let j=0; j<W; j++){ const v = x[off+j] - x[off+j+tau]; s += v*v; } d[tau] = s;
+    }
+    let run = 0; cm[0] = 1;
+    for (let tau=1; tau<=maxTau+1; tau++){ run += d[tau]; cm[tau] = run > 0 ? d[tau]*tau/run : 1; }
+    let best = -1;
+    for (let tau=minTau; tau<=maxTau; tau++){
+      if (cm[tau] < 0.15){ while (tau < maxTau && cm[tau+1] < cm[tau]) tau++; best = tau; break; }
+    }
+    if (best < 1) return null;
+    const a = cm[best-1], b = cm[best], c = cm[best+1], den = a - 2*b + c;
+    const shift = den > 1e-9 ? Math.max(-1, Math.min(1, (a - c)/(2*den))) : 0;
+    return { f: sr/(best+shift), q: 1 - b };
+  }
+  return {
+    size: N,
+    setSensitivity(v){ sens = Math.max(0, Math.min(1, v)); },
+    reset(){ sounding = null; armed = null; cand = null; },
+    // x: newest samples at the end. t: time in seconds. Returns note on/off events.
+    process(x, t){
+      const off = x.length - N; let e = 0;
+      for (let i = x.length-512; i < x.length; i++) e += x[i]*x[i];
+      const rms = Math.sqrt(e/512);
+      // noise floor: falls fast, rises very slowly and is capped, so continuous playing never raises it above the notes
+      floor = Math.min(0.012, floor + (rms - floor) * (rms < floor ? 0.2 : 0.0004));
+      const gate = Math.max(floor*2.5, 0.03*Math.pow(0.06, sens));
+      const events = [];
+      const p = rms > gate ? yin(x, off) : null;
+      let m = null, cents = 0;
+      if (p){ const n = 69 + 12*Math.log2(p.f/440); m = Math.round(n); cents = Math.round((n-m)*100); }
+      // a sharp rise in level = a new key strike (also catches the same key played again)
+      // compared with the loudest of the last 3 frames, so beating in a ringing string is not a new strike
+      if (rms > gate && rms > Math.max(...recent)*1.4 && t - lastOnset > 0.08){ armed = { t, last: null, n: 0 }; lastOnset = t; cand = null; }
+      recent.shift(); recent.push(rms);
+      if (armed){
+        if (m != null && t - armed.t >= 0.03){ // wait until the analysis window holds mostly the new note
+          if (m === armed.last) armed.n++; else { armed.last = m; armed.n = 1; }
+          if (armed.n >= 2){
+            if (sounding != null) events.push({ type:"off", midi: sounding });
+            sounding = m; events.push({ type:"on", midi: m, level: rms }); armed = null;
+          }
+        } else if (t - armed.t > 0.2) armed = null;
+      } else if (sounding != null && m != null && m !== sounding && p.q > 0.9){
+        // legato: pitch changed without a clear attack
+        if (cand && cand.m === m) cand.n++; else cand = { m, n: 1 };
+        if (cand.n >= 4){ events.push({ type:"off", midi: sounding }, { type:"on", midi: m, level: rms }); sounding = m; cand = null; }
+      } else cand = null;
+      if (sounding != null && rms < gate*0.8){ events.push({ type:"off", midi: sounding }); sounding = null; }
+      return { events, rms, gate, midi: m, cents };
+    }
+  };
+}
+// DETECTOR-END
+
+const ON_PAGES = "https://svinfun.github.io/Svinfun/keski-c/";
+const mic = { on: false, stream: null, src: null, an: null, det: null, buf: null, raf: 0, held: null, shown: 0 };
+const micBtn = $("mic-btn"), micMsg = $("mic-msg"), micSens = $("mic-sens");
+micSens.value = store.get("sens", 6);
+function micMessage(html){ micMsg.innerHTML = html || ""; micMsg.hidden = !html; }
+async function startMic(){
+  micMessage("");
+  if (!navigator.mediaDevices?.getUserMedia){
+    micMessage(`Tämä selain ei anna mikrofonia käyttöön. Avaa sovellus osoitteessa <a href="${ON_PAGES}" target="_blank" rel="noopener">${ON_PAGES}</a>.`); return;
+  }
+  let stream;
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  }catch(e){
+    const inFrame = window.top !== window.self;
+    micMessage(inFrame && !location.href.startsWith(ON_PAGES)
+      ? `Mikrofoni on estetty tällä sivulla. Avaa sovellus osoitteessa <a href="${ON_PAGES}" target="_blank" rel="noopener">${ON_PAGES}</a>, niin kuuntelu toimii.`
+      : "Mikrofonia ei saatu käyttöön. Salli mikrofoni selaimen osoiterivin lukkokuvakkeesta ja yritä uudelleen.");
+    return;
+  }
+  const c = audio();
+  mic.stream = stream; mic.src = c.createMediaStreamSource(stream);
+  mic.an = c.createAnalyser(); mic.an.fftSize = 2048; mic.src.connect(mic.an);
+  mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
+  mic.buf = new Float32Array(mic.an.fftSize);
+  mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
+  $("mic-live").hidden = false; $("mic-heard").textContent = "Soita jokin sävel";
+  micLoop();
+}
+function stopMic(){
+  cancelAnimationFrame(mic.raf);
+  mic.stream?.getTracks().forEach(tr => tr.stop());
+  try{ mic.src?.disconnect(); }catch(e){}
+  if (mic.held != null){ keyEls[mic.held]?.classList.remove("down"); mic.held = null; }
+  mic.on = false; micBtn.setAttribute("aria-pressed", "false"); $("mic-label").textContent = "Kuuntele pianoa";
+  $("mic-live").hidden = true;
+}
+function micLoop(){
+  if (!mic.on) return;
+  mic.an.getFloatTimeDomainData(mic.buf);
+  const r = mic.det.process(mic.buf, ctx.currentTime);
+  const toPct = v => Math.max(0, Math.min(100, (Math.log10(Math.max(v, 1e-4)) + 4) / 4 * 100));
+  $("mic-level").style.width = toPct(r.rms) + "%"; $("mic-gate").style.left = toPct(r.gate) + "%";
+  if (synthBusy() || songState.playing){ mic.det.reset(); }
+  else for (const ev of r.events){
+    if (ev.type === "on"){
+      if (mic.held != null) keyEls[mic.held]?.classList.remove("down");
+      mic.held = ev.midi; press(ev.midi, 0, true);
+    } else if (ev.midi === mic.held){ keyEls[ev.midi]?.classList.remove("down"); mic.held = null; }
+  }
+  const now = performance.now();
+  if (r.midi != null && r.rms > r.gate && !synthBusy()){
+    const oct = Math.floor(r.midi/12) - 1, out = r.midi < LOW || r.midi > HIGH;
+    $("mic-heard").innerHTML = `${nameOf(r.midi)}<small>${oct}</small> <small>${r.cents >= 0 ? "+" : "−"}${Math.abs(r.cents)} snt${out ? " · ei näytöllä" : ""}</small>`;
+    mic.shown = now;
+  } else if (now - mic.shown > 1500) $("mic-heard").textContent = "Kuuntelee…";
+  mic.raf = requestAnimationFrame(micLoop);
+}
+micBtn.onclick = () => mic.on ? stopMic() : startMic();
+micSens.oninput = () => { store.set("sens", +micSens.value); mic.det?.setSensitivity((micSens.value-1)/9); };
+
 /* ---------- routing ---------- */
 let currentView = "songs";
 function onNote(m){
@@ -545,3 +709,6 @@ renderSongList(); newTarget();
 const h0 = location.hash.slice(1); show(["songs","quiz","free"].includes(h0) ? h0 : "songs");
 })();
 </script>
+
+</body>
+</html>
