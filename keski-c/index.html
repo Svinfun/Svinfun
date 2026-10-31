@@ -14,6 +14,7 @@
   --accent:#1F5F78; --accent-soft:#DCEAF0;
   --target:#E0A21B; --ok:#2E8B57; --bad:#C8423B;
   --staff:#2A3236; --past:#9AA5A8;
+  --target-lh:#8D5BC8; --on-lh:#FFFFFF; --lh-ink:#7A45B8;
   --lacquer:#101315; --felt:#8E1F2B; --ivory:#FBFAF6; --ivory-edge:#C9C6BC; --ebony:#17191B;
   --f-display:"Young Serif", Georgia, "Times New Roman", serif;
   --f-body:"Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -24,6 +25,7 @@
   --accent:#72B6D2; --accent-soft:#1D3640;
   --target:#F0B43A; --ok:#4CC283; --bad:#E5706A;
   --staff:#C9D1D2; --past:#5E696D;
+  --target-lh:#B48AE6; --on-lh:#1E1030; --lh-ink:#C3A2EE;
   --lacquer:#07090A; --felt:#7A1A25; --ivory:#ECEAE3; --ivory-edge:#A9A69D; --ebony:#0B0C0D;
   color-scheme:dark }}
 :root[data-theme="dark"]{
@@ -31,6 +33,7 @@
   --accent:#72B6D2; --accent-soft:#1D3640;
   --target:#F0B43A; --ok:#4CC283; --bad:#E5706A;
   --staff:#C9D1D2; --past:#5E696D;
+  --target-lh:#B48AE6; --on-lh:#1E1030; --lh-ink:#C3A2EE;
   --lacquer:#07090A; --felt:#7A1A25; --ivory:#ECEAE3; --ivory-edge:#A9A69D; --ebony:#0B0C0D;
   color-scheme:dark }
 
@@ -82,6 +85,12 @@ svg.staff{display:block;width:100%;min-width:320px;height:auto}
 .chip .n{font-weight:700}
 .chip .l{font-size:.72rem;color:var(--muted)}
 .chip .f{font-size:.7rem;color:var(--accent);font-weight:700}
+.chip .lh{color:var(--lh-ink)}
+.chip .f.lh{color:var(--lh-ink)}
+.chip .n+.n{border-top:1px solid var(--rule);margin-top:2px;padding-top:2px}
+.legend{display:flex;gap:14px;font-size:.8rem;color:var(--muted);margin-top:4px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+select.sel{font:inherit;font-size:.9rem;border:1px solid var(--rule);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 8px}
 .chip.past{opacity:.45}
 .chip.now{border-color:var(--target);background:color-mix(in srgb, var(--target) 22%, transparent)}
 .status{font-weight:700;min-height:1.5em}
@@ -116,6 +125,7 @@ svg.staff{display:block;width:100%;min-width:320px;height:auto}
 .black.down{background:#3A4246}
 .target.white{background:var(--target);color:#2A1D00}
 .target.black{background:var(--target);color:#2A1D00}
+.target-lh.white,.target-lh.black{background:var(--target-lh);color:var(--on-lh)}
 .ok.white,.ok.black{background:var(--ok)!important;color:#fff}
 .bad.white,.bad.black{background:var(--bad)!important;color:#fff}
 .midc{position:absolute;bottom:46px;font-size:.6rem;color:#8A9295;font-weight:700;letter-spacing:.04em}
@@ -152,7 +162,7 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
   <header>
     <div class="brand">
       <h1>Keski-<span>C</span></h1>
-      <p>Opettele soittamaan pianoa, nuotti kerrallaan.</p>
+      <p>Opettele soittamaan pianoa, ensin yhdellä ja sitten kahdella kädellä.</p>
     </div>
     <nav class="tabs" role="tablist" aria-label="Harjoitukset">
       <button role="tab" id="tab-songs" aria-selected="true" data-view="songs">Kappaleet</button>
@@ -167,6 +177,7 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
       <div>
         <div class="eyebrow" id="song-meta"></div>
         <h2 id="song-title"></h2>
+        <div class="legend" id="hand-legend" hidden><span><i style="background:var(--target)"></i>Oikea käsi</span><span><i style="background:var(--target-lh)"></i>Vasen käsi</span></div>
       </div>
       <div class="row">
         <button class="btn" id="song-listen">▶ Kuuntele</button>
@@ -189,6 +200,7 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
         <label class="chk"><input type="radio" name="qmode" id="qmode-staff" value="staff" checked><span>Viivastolta</span></label>
         <label class="chk"><input type="radio" name="qmode" id="qmode-name" value="name"><span>Nimen mukaan</span></label>
         <label class="chk"><input type="checkbox" id="q-sharps"><span>Mustat koskettimet</span></label>
+        <select class="sel" id="q-clef" aria-label="Nuottiavain"><option value="treble">Diskanttiavain</option><option value="bass">Bassoavain</option><option value="both">Molemmat avaimet</option></select>
       </div>
     </div>
     <div class="quiz" style="margin-top:12px">
@@ -245,8 +257,9 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
   <div class="tips">
     <div><h3>H eikä B</h3><p>Suomessa valkoinen kosketin C:stä seitsemäs on <b>H</b>. Sen vasemmalla puolella oleva musta kosketin on <b>B</b>. Muut mustat ovat Cis, Dis, Fis ja Gis.</p></div>
     <div><h3>Oikea piano</h3><p>Paina <b>Kuuntele pianoa</b> ja salli mikrofoni. Aseta puhelin tai tietokone pianon lähelle ja soita yksi sävel kerrallaan. Jos sovellus kuulee ääniä, joita et soittanut, pienennä herkkyyttä.</p></div>
+    <div><h3>Kaksi kättä</h3><p>Keltainen kosketin on oikealle kädelle ja violetti vasemmalle. Kun soitat kaksi säveltä yhtä aikaa, soita ne samalla hetkellä. Mikrofonin kautta sovellus tarkistaa, kuuluvatko odotetut sävelet. Samaa säveltä kahdessa oktaavissa (esimerkiksi C3 ja C4 yhtä aikaa) se ei pysty erottamaan toisistaan.</p></div>
     <div><h3>Keski-C</h3><p>Keski-C on pianon keskellä, kahden mustan koskettimen ryhmän vasemmalla puolella. Viivastolla se istuu oman apuviivansa päällä viivaston alapuolella.</p></div>
-    <div><h3>Näppäimistö</h3><p><kbd>A</kbd> on keski-C, sitten <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>Ö</kbd> <kbd>Ä</kbd>. Mustat koskettimet ovat ylärivillä: <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd>.</p></div>
+    <div><h3>Näppäimistö</h3><p><kbd>A</kbd> on keski-C, sitten <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>Ö</kbd> <kbd>Ä</kbd>. Mustat koskettimet ovat ylärivillä: <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd>. Vasemman käden oktaavi C3–H3 on alarivillä: <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd>.</p></div>
     <div><h3>Sormitus</h3><p>Peukalo on 1 ja pikkusormi 5. C-asemassa oikean käden sormet lepäävät koskettimilla C, D, E, F ja G.</p></div>
   </div>
 </div>
@@ -255,12 +268,43 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 (() => {
 "use strict";
 const NAMES = ["C","Cis","D","Dis","E","F","Fis","G","Gis","A","B","H"];
-const LOW = 60, HIGH = 84; // C4..C6
 const isBlack = m => [1,3,6,8,10].includes(((m%12)+12)%12);
 const nameOf = m => NAMES[((m%12)+12)%12];
-const LETTER = {C:0,D:2,E:4,F:5,G:7,A:9,B:11,H:11};
-function parseNote(tok){ const [n,d] = tok.split("/"); const mm = n.match(/^([A-H])(#?)(\d)$/);
-  return { midi:(+mm[3]+1)*12 + LETTER[mm[1]] + (mm[2]?1:0), dur: d ? +d : 1 }; }
+const octOf = m => Math.floor(m/12) - 1;
+// In the song data B and H both mean the white key H; a sharp is written with #.
+const LETTER = {C:0,D:2,E:4,F:5,G:7,A:9,H:11,B:11};
+const $ = id => document.getElementById(id);
+
+/* Note tokens: NOTE[#]OCT, then optional :finger and /beats in either order, or R[/beats] for a rest. Example: G#3/0.25, C4:1/2 */
+function parseTok(tok){
+  const mm = tok.match(/^([A-HR])(#?)(\d?)(?::(\d))?(?:\/([\d.]+))?(?::(\d))?$/);
+  if (!mm) throw new Error("Tuntematon nuotti: " + tok);
+  const dur = mm[5] ? +mm[5] : 1, finger = mm[4] || mm[6];
+  if (mm[1] === "R") return { rest: true, dur };
+  return { midi: (+mm[3]+1)*12 + LETTER[mm[1]] + (mm[2] ? 1 : 0), dur, finger: finger ? +finger : null };
+}
+// Merge the hands into steps: each step holds the notes that start at the same moment.
+function buildSteps(voices){
+  const at = new Map();
+  for (const v of voices){
+    let t = 0;
+    for (const tok of v.seq.trim().split(/\s+/)){
+      const n = parseTok(tok);
+      if (!n.rest){
+        const k = Math.round(t*1000);
+        if (!at.has(k)) at.set(k, { t, notes: [] });
+        at.get(k).notes.push({ midi: n.midi, dur: n.dur, hand: v.hand, finger: n.finger });
+      }
+      t += n.dur;
+    }
+  }
+  const steps = [...at.values()].sort((a,b) => a.t - b.t);
+  steps.forEach((s,i) => {
+    s.notes.sort((a,b) => a.midi - b.midi);
+    s.len = i < steps.length-1 ? steps[i+1].t - s.t : Math.max(...s.notes.map(n => n.dur));
+  });
+  return steps;
+}
 
 /* ---------- storage ---------- */
 const store = {
@@ -313,34 +357,62 @@ let lastSynth = -1e9;
 const synthBusy = () => voices.size > 0 || performance.now() - lastSynth < 450;
 
 /* ---------- keyboard ---------- */
-const keysEl = document.getElementById("keys");
-const KEYMAP = {KeyA:60,KeyW:61,KeyS:62,KeyE:63,KeyD:64,KeyF:65,KeyT:66,KeyG:67,KeyY:68,KeyH:69,KeyU:70,KeyJ:71,KeyK:72,KeyO:73,KeyL:74,KeyP:75,Semicolon:76,Quote:77};
-const KBLABEL = {}; const kbLetters = {KeyA:"A",KeyW:"W",KeyS:"S",KeyE:"E",KeyD:"D",KeyF:"F",KeyT:"T",KeyG:"G",KeyY:"Y",KeyH:"H",KeyU:"U",KeyJ:"J",KeyK:"K",KeyO:"O",KeyL:"L",KeyP:"P",Semicolon:"Ö",Quote:"Ä"};
-for (const [c,m] of Object.entries(KEYMAP)) KBLABEL[m] = kbLetters[c];
-const keyEls = {};
-const whites = []; for (let m=LOW; m<=HIGH; m++) if (!isBlack(m)) whites.push(m);
-const W = 100/whites.length;
-whites.forEach((m,i) => {
-  const el = document.createElement("div"); el.className = "white"; el.dataset.m = m;
-  el.style.left = (i*W)+"%"; el.style.width = W+"%";
-  el.innerHTML = (m===60?'<span class="midc">KESKI-C</span>':"") + `<span class="lbl">${nameOf(m)}</span>` + (KBLABEL[m]?`<span class="kb">${KBLABEL[m]}</span>`:"");
-  keysEl.appendChild(el); keyEls[m] = el;
-});
-for (let m=LOW; m<=HIGH; m++) if (isBlack(m)){
-  const i = whites.indexOf(m-1); const bw = W*0.6;
-  const el = document.createElement("div"); el.className = "black"; el.dataset.m = m;
-  el.style.left = ((i+1)*W - bw/2)+"%"; el.style.width = bw+"%";
-  el.innerHTML = `<span class="lbl">${nameOf(m)}</span>` + (KBLABEL[m]?`<span class="kb">${KBLABEL[m]}</span>`:"");
-  keysEl.appendChild(el); keyEls[m] = el;
+const keysEl = $("keys"), pianoEl = keysEl.parentElement;
+const KEYMAP = {KeyZ:48,KeyX:50,KeyC:52,KeyV:53,KeyB:55,KeyN:57,KeyM:59,
+  KeyA:60,KeyW:61,KeyS:62,KeyE:63,KeyD:64,KeyF:65,KeyT:66,KeyG:67,KeyY:68,KeyH:69,KeyU:70,KeyJ:71,KeyK:72,KeyO:73,KeyL:74,KeyP:75,Semicolon:76,Quote:77};
+const KBLABEL = {};
+for (const [c,m] of Object.entries(KEYMAP)) KBLABEL[m] = {Semicolon:"Ö",Quote:"Ä"}[c] || c.slice(3);
+let keyEls = {};
+const kb = { lo: 0, hi: 0 };
+function buildKeyboard(lo, hi){
+  if (kb.lo === lo && kb.hi === hi) return;
+  kb.lo = lo; kb.hi = hi; keyEls = {}; keysEl.textContent = "";
+  const whites = []; for (let m=lo; m<=hi; m++) if (!isBlack(m)) whites.push(m);
+  const W = 100/whites.length;
+  keysEl.style.minWidth = Math.max(480, whites.length*30) + "px";
+  whites.forEach((m,i) => {
+    const el = document.createElement("div"); el.className = "white"; el.dataset.m = m;
+    el.style.left = (i*W)+"%"; el.style.width = W+"%";
+    el.innerHTML = (m===60?'<span class="midc">KESKI-C</span>':"") + `<span class="lbl">${nameOf(m)}<small style="font-weight:400;opacity:.6">${octOf(m)}</small></span>` + (KBLABEL[m]?`<span class="kb">${KBLABEL[m]}</span>`:"");
+    keysEl.appendChild(el); keyEls[m] = el;
+  });
+  for (let m=lo; m<=hi; m++) if (isBlack(m)){
+    const i = whites.indexOf(m-1); const bw = W*0.6;
+    const el = document.createElement("div"); el.className = "black"; el.dataset.m = m;
+    el.style.left = ((i+1)*W - bw/2)+"%"; el.style.width = bw+"%";
+    el.innerHTML = `<span class="lbl">${nameOf(m)}</span>` + (KBLABEL[m]?`<span class="kb">${KBLABEL[m]}</span>`:"");
+    keysEl.appendChild(el); keyEls[m] = el;
+  }
 }
-const optLabels = document.getElementById("opt-labels"), optKb = document.getElementById("opt-kb");
+// Smallest keyboard that holds lo..hi, starting and ending on white keys, at least 15 white keys wide.
+function rangeFor(lo, hi){
+  if (isBlack(lo)) lo--; if (isBlack(hi)) hi++;
+  const whiteCount = () => { let n = 0; for (let m=lo; m<=hi; m++) if (!isBlack(m)) n++; return n; };
+  let up = true;
+  while (whiteCount() < 15){ if (up){ hi++; if (isBlack(hi)) hi++; } else { lo--; if (isBlack(lo)) lo--; } up = !up; }
+  return [lo, hi];
+}
+// Scroll the keyboard sideways so the given keys are in view (phones show only part of a wide keyboard).
+function reveal(midis){
+  if (pianoEl.scrollWidth <= pianoEl.clientWidth + 2) return;
+  const els = midis.map(m => keyEls[m]).filter(Boolean); if (!els.length) return;
+  const pr = pianoEl.getBoundingClientRect();
+  const l = Math.min(...els.map(e => e.getBoundingClientRect().left)) - pr.left;
+  const r = Math.max(...els.map(e => e.getBoundingClientRect().right)) - pr.left;
+  if (l < 30 || r > pr.width - 30){
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    pianoEl.scrollTo({ left: pianoEl.scrollLeft + (l + r)/2 - pr.width/2, behavior: reduce ? "auto" : "smooth" });
+  }
+}
+const optLabels = $("opt-labels"), optKb = $("opt-kb");
 optLabels.checked = store.get("labels", true); optKb.checked = store.get("kb", true);
 const applyOpts = () => { keysEl.classList.toggle("nolabels", !optLabels.checked); keysEl.classList.toggle("nokb", !optKb.checked);
   store.set("labels", optLabels.checked); store.set("kb", optKb.checked); };
 optLabels.onchange = optKb.onchange = applyOpts; applyOpts();
 
 function flash(m, cls, ms=380){ const el = keyEls[m]; if (!el) return; el.classList.add(cls); setTimeout(()=>el.classList.remove(cls), ms); }
-function setTargets(list, cls="target"){ for (const el of Object.values(keyEls)) el.classList.remove(cls); for (const m of list) keyEls[m]?.classList.add(cls); }
+function clearTargets(){ for (const el of Object.values(keyEls)) el.classList.remove("target", "target-lh"); }
+function setTargets(list){ clearTargets(); for (const m of list) keyEls[m]?.classList.add("target"); reveal(list); }
 
 const pointerNotes = new Map();
 keysEl.addEventListener("pointerdown", e => {
@@ -357,6 +429,7 @@ const endPointer = e => { if (pointerNotes.has(e.pointerId)){ release(pointerNot
 window.addEventListener("pointerup", endPointer); window.addEventListener("pointercancel", endPointer);
 window.addEventListener("keydown", e => {
   if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;
+  if (e.target.closest && e.target.closest("select")) return;
   const m = KEYMAP[e.code]; if (m == null) return;
   if (e.target.closest && e.target.closest("button, input")) { if (e.code !== "Space") e.target.blur?.(); }
   e.preventDefault(); press(m);
@@ -368,7 +441,7 @@ function press(m, vel, silent){ if (!silent) noteOn(m, vel); keyEls[m]?.classLis
 function release(m){ noteOff(m); keyEls[m]?.classList.remove("down"); }
 
 /* MIDI keyboard (works where the browser allows it) */
-const midiStatus = document.getElementById("midi-status");
+const midiStatus = $("midi-status");
 try{
   navigator.requestMIDIAccess?.().then(acc => {
     const hook = () => { let n = 0; acc.inputs.forEach(inp => { n++; inp.onmidimessage = ev => {
@@ -379,124 +452,221 @@ try{
   }).catch(()=>{});
 }catch(e){}
 
-/* ---------- staff renderer ---------- */
+/* ---------- staff renderer (treble staff, or grand staff with the bass clef) ---------- */
 const SVGNS = "http://www.w3.org/2000/svg";
 const SPELL = [[0,0],[0,1],[1,0],[1,1],[2,0],[3,0],[3,1],[4,0],[4,1],[5,0],[5,1],[6,0]];
 function stepOf(m){ const [l,s] = SPELL[((m%12)+12)%12]; return { step: (Math.floor(m/12)-1)*7 + l, sharp: s }; }
 function svgEl(tag, attrs, parent){ const e = document.createElementNS(SVGNS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
-function drawStaff(svg, notes, opts={}){
-  const vb = svg.viewBox.baseVal, width = vb.width;
+// staff geometry: y of the bottom line, the step number of that line (E4 = 30, G2 = 18), middle line step
+const STAVES = { R: { bottom: 85, low: 30, mid: 34 }, L: { bottom: 190, low: 18, mid: 22 } };
+function drawStaff(svg, items, opts={}){
+  const grand = !!opts.grand, width = svg.viewBox.baseVal.width || 640, H = grand ? 232 : 130;
+  svg.setAttribute("viewBox", `0 0 ${width} ${H}`);
   svg.textContent = "";
-  const bottom = 85, gap = 10; // E4 line at y=85, lines every 10
-  const y = step => bottom - (step-30)*5;
-  for (let i=0;i<5;i++) svgEl("line",{x1:6,x2:width-6,y1:bottom-i*gap,y2:bottom-i*gap,stroke:"var(--staff)","stroke-width":1.2},svg);
-  const clef = svgEl("text",{x:10,y:bottom+3,"font-size":64,fill:"var(--staff)","font-family":"var(--f-music)"},svg); clef.textContent = "\u{1D11E}";
-  const x0 = 70, dx = opts.dx || Math.min(64, (width-x0-20)/Math.max(notes.length,1));
-  notes.forEach((n,i) => {
-    const {step, sharp} = stepOf(n.midi);
-    const x = x0 + dx*i + dx/2, ny = y(step);
-    const col = n.state === "now" ? "var(--target)" : n.state === "past" ? "var(--past)" : n.state === "ok" ? "var(--ok)" : "var(--staff)";
-    for (let s = 28; s >= step; s -= 2) svgEl("line",{x1:x-11,x2:x+11,y1:y(s),y2:y(s),stroke:"var(--staff)","stroke-width":1.2},svg);
-    for (let s = 40; s <= step; s += 2) svgEl("line",{x1:x-11,x2:x+11,y1:y(s),y2:y(s),stroke:"var(--staff)","stroke-width":1.2},svg);
-    if (sharp){ const t = svgEl("text",{x:x-22,y:ny+5,"font-size":16,fill:col,"font-family":"var(--f-music)","text-anchor":"middle"},svg); t.textContent = "♯"; }
-    const hollow = (n.dur||1) >= 2;
-    svgEl("ellipse",{cx:x,cy:ny,rx:6.6,ry:4.8,transform:`rotate(-20 ${x} ${ny})`,fill:hollow?"none":col,stroke:col,"stroke-width":hollow?2:1},svg);
-    if ((n.dur||1) < 4){
-      const up = step < 34;
-      svgEl("line",{x1:up?x+6:x-6,x2:up?x+6:x-6,y1:ny,y2:up?ny-32:ny+32,stroke:col,"stroke-width":1.4},svg);
-      if ((n.dur||1) <= 0.5) svgEl("path",{d: up?`M${x+6} ${ny-32} q 2 10 10 16`:`M${x-6} ${ny+32} q 2 -10 10 -16`,stroke:col,fill:"none","stroke-width":2},svg);
+  const line = (x1, x2, y, w=1.2) => svgEl("line",{x1,x2,y1:y,y2:y,stroke:"var(--staff)","stroke-width":w},svg);
+  const glyph = (ch, x, y, size, fill="var(--staff)", anchor="start") => { const t = svgEl("text",{x,y,"font-size":size,fill,"font-family":"var(--f-music)","text-anchor":anchor},svg); t.textContent = ch; };
+  for (let i=0;i<5;i++) line(6, width-6, 85-i*10);
+  glyph("\u{1D11E}", 10, 88, 64);
+  if (grand){
+    for (let i=0;i<5;i++) line(6, width-6, 190-i*10);
+    glyph("\u{1D122}", 12, 183, 62);
+    svgEl("line",{x1:6,x2:6,y1:45,y2:190,stroke:"var(--staff)","stroke-width":2},svg);
+  }
+  const x0 = 70, dx = opts.dx || Math.min(64, (width-x0-20)/Math.max(items.length,1));
+  items.forEach((it, i) => {
+    const x = x0 + dx*i + dx/2;
+    const col = it.state === "now" ? "var(--target)" : it.state === "past" ? "var(--past)" : it.state === "ok" ? "var(--ok)" : "var(--staff)";
+    const notes = it.notes || [{ midi: it.midi, dur: it.dur || 1 }];
+    const groups = { R: [], L: [] };
+    for (const n of notes) groups[grand ? (n.hand || (n.midi < 60 ? "L" : "R")) : "R"].push(n);
+    for (const h of ["R","L"]){
+      const g = groups[h]; if (!g.length) continue;
+      const S = STAVES[h], y = s => S.bottom - (s - S.low)*5;
+      const hc = it.state === "now" && h === "L" ? "var(--target-lh)" : col;
+      const ss = g.map(n => ({ ...n, ...stepOf(n.midi) })).sort((a,b) => a.step - b.step);
+      const minS = ss[0].step, maxS = ss[ss.length-1].step;
+      for (let s = S.low-2; s >= minS; s -= 2) line(x-11, x+11, y(s));
+      for (let s = S.low+10; s <= maxS; s += 2) line(x-11, x+11, y(s));
+      const dur = Math.max(...g.map(n => n.dur || 1)), hollow = dur >= 2;
+      ss.forEach((n, k) => {
+        n.ox = (k > 0 && n.step - ss[k-1].step === 1 && !ss[k-1].ox) ? 12 : 0; // a second: put the upper head beside
+        const nx = x + n.ox, ny = y(n.step);
+        if (n.sharp) glyph("♯", x-20, ny+5, 16, hc, "middle");
+        svgEl("ellipse",{cx:nx,cy:ny,rx:6.6,ry:4.8,transform:`rotate(-20 ${nx} ${ny})`,fill:hollow?"none":hc,stroke:hc,"stroke-width":hollow?2:1},svg);
+        if ([0.75,1.5,3].includes(n.dur || 1)) svgEl("circle",{cx:nx+11,cy:ny-((n.step-S.low)%2===0?3:0),r:1.8,fill:hc},svg);
+      });
+      if (dur < 4){
+        const up = (minS + maxS)/2 < S.mid, sx = up ? x+6 : x-6;
+        const y1 = up ? y(minS) : y(maxS), y2 = up ? y(maxS)-32 : y(minS)+32;
+        svgEl("line",{x1:sx,x2:sx,y1,y2,stroke:hc,"stroke-width":1.4},svg);
+        const flag = yy => svgEl("path",{d: up ? `M${sx} ${yy} q 2 10 10 16` : `M${sx} ${yy} q 2 -10 10 -16`,stroke:hc,fill:"none","stroke-width":2},svg);
+        if (dur <= 0.75) flag(y2);
+        if (dur <= 0.375) flag(up ? y2+7 : y2-7);
+      }
     }
-    if (n.dur === 1.5) svgEl("circle",{cx:x+11,cy:ny-(step%2===0?3:0),r:1.8,fill:col},svg);
-    if (n.state === "now") svgEl("path",{d:`M${x-5} 120 l5 -6 l5 6 z`,fill:"var(--target)"},svg);
+    if (it.state === "now") svgEl("path",{d:`M${x-5} ${H-2} l5 -6 l5 6 z`,fill:"var(--target)"},svg);
   });
 }
 
 /* ---------- songs ---------- */
+const CPOS = {60:1,62:2,64:3,65:4,67:5};
 const SONGS = [
   { id:"asteikko", title:"C-duuriasteikko", level:"Lämmittely", bpm:84,
-    notes:"C4 D4 E4 F4 G4 A4 B4 C5/2 B4 A4 G4 F4 E4 D4 C4/2",
+    rh:"C4 D4 E4 F4 G4 A4 H4 C5/2 H4 A4 G4 F4 E4 D4 C4/2",
     fingers:[1,2,3,1,2,3,4,5,4,3,2,1,3,2,1], tip:"Peukalo alittaa F:n kohdalla ylöspäin mentäessä, ja 3. sormi ylittää peukalon alaspäin tullessa." },
   { id:"ukko", title:"Ukko Nooa", level:"Helppo · C-asema", bpm:100, cpos:true,
-    notes:"C4 C4 C4 E4 D4 D4 D4 F4 E4 E4 D4 D4 C4/2 E4 E4 E4 E4 G4/2 F4/2 D4 D4 D4 D4 F4/2 E4/2 C4 C4 C4 E4 D4 D4 D4 F4 E4 E4 D4 D4 C4/4",
+    rh:"C4 C4 C4 E4 D4 D4 D4 F4 E4 E4 D4 D4 C4/2 E4 E4 E4 E4 G4/2 F4/2 D4 D4 D4 D4 F4/2 E4/2 C4 C4 C4 E4 D4 D4 D4 F4 E4 E4 D4 D4 C4/4",
     lyrics:"Uk ko Noo a uk ko Noo a o li kun non mies, kun hän me ni sau naan, pa ni lau kun nau laan, uk ko Noo a uk ko Noo a o li kun non mies.",
     tip:"Pidä sormet C-asemassa: peukalo C:llä, pikkusormi G:llä. Kättä ei tarvitse liikuttaa." },
   { id:"oodi", title:"Oodi ilolle", level:"Helppo · C-asema", bpm:96, cpos:true,
-    notes:"E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4/1.5 D4/0.5 D4/2 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4/1.5 C4/0.5 C4/2",
+    rh:"E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4/1.5 D4/0.5 D4/2 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4/1.5 C4/0.5 C4/2",
     tip:"Beethovenin melodia liikkuu enimmäkseen viereisiin koskettimiin. Pisteellinen nuotti on puolitoista iskua pitkä." },
   { id:"tuiki", title:"Tuiki tuiki tähtönen", level:"Keskitaso", bpm:100,
-    notes:"C4 C4 G4 G4 A4 A4 G4/2 F4 F4 E4 E4 D4 D4 C4/2 G4 G4 F4 F4 E4 E4 D4/2 G4 G4 F4 F4 E4 E4 D4/2 C4 C4 G4 G4 A4 A4 G4/2 F4 F4 E4 E4 D4 D4 C4/2",
+    rh:"C4 C4 G4 G4 A4 A4 G4/2 F4 F4 E4 E4 D4 D4 C4/2 G4 G4 F4 F4 E4 E4 D4/2 G4 G4 F4 F4 E4 E4 D4/2 C4 C4 G4 G4 A4 A4 G4/2 F4 F4 E4 E4 D4 D4 C4/2",
     fingers:[1,1,4,4,5,5,4,3,3,2,2,1,1,1, 4,4,3,3,2,2,1,4,4,3,3,2,2,1, 1,1,4,4,5,5,4,3,3,2,2,1,1,1],
     tip:"Hyppy C:ltä G:lle tehdään sormilla 1 ja 4, jolloin 5. sormi ylettää A:lle." },
   { id:"jaakko", title:"Jaakko kulta", level:"Keskitaso · G-asema", bpm:104,
-    notes:"G4 A4 B4 G4 G4 A4 B4 G4 B4 C5 D5/2 B4 C5 D5/2 D5/0.5 E5/0.5 D5/0.5 C5/0.5 B4 G4 D5/0.5 E5/0.5 D5/0.5 C5/0.5 B4 G4 G4 D4 G4/2 G4 D4 G4/2",
+    rh:"G4 A4 H4 G4 G4 A4 H4 G4 H4 C5 D5/2 H4 C5 D5/2 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 G4 D4 G4/2 G4 D4 G4/2",
     lyrics:"Jaak ko kul ta, Jaak ko kul ta, he rää jo, he rää jo, kel lo ja si soi ta, kel lo ja si soi ta, pim pom pom, pim pom pom.",
     tip:"Tämä kappale on G-asemassa. Huomaa H: se on valkoinen kosketin A:n oikealla puolella." },
+
+  { id:"vuorotellen", title:"Kädet vuorotellen", level:"Kaksi kättä · alku", bpm:92, hands:2,
+    lh:"C3:5 R D3:4 R E3:3 R F3:2 R G3:1 R F3:2 R E3:3 R D3:4 R C3:5/2",
+    rh:"R C4:1 R D4:2 R E4:3 R F4:4 R G4:5 R F4:4 R E4:3 R D4:2 C4:1/2",
+    tip:"Molemmat kädet ovat C-asemassa: vasemman käden pikkusormi on C3:lla ja oikean käden peukalo keski-C:llä. Viimeinen C soitetaan molemmilla käsillä yhtä aikaa." },
+  { id:"oodi2", title:"Oodi ilolle · kaksi kättä", level:"Kaksi kättä · keskitaso", bpm:92, hands:2, cpos:true,
+    rh:"E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4/1.5 D4/0.5 D4/2 E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 D4/1.5 C4/0.5 C4/2",
+    lh:"C3:5/4 G3:1/4 C3:5/4 G3:1/4 C3:5/4 G3:1/4 C3:5/4 G3:1/2 C3:5/2",
+    tip:"Vasen käsi soittaa tahdin alussa pitkän bassosävelen, C:n tai G:n, ja pitää sitä neljä iskua, kun oikea käsi jatkaa melodiaa." },
+  { id:"tuiki2", title:"Tuiki tuiki · kaksi kättä", level:"Kaksi kättä · keskitaso", bpm:96, hands:2,
+    rh:"C4 C4 G4 G4 A4 A4 G4/2 F4 F4 E4 E4 D4 D4 C4/2 G4 G4 F4 F4 E4 E4 D4/2 G4 G4 F4 F4 E4 E4 D4/2 C4 C4 G4 G4 A4 A4 G4/2 F4 F4 E4 E4 D4 D4 C4/2",
+    fingers:[1,1,4,4,5,5,4,3,3,2,2,1,1,1, 4,4,3,3,2,2,1,4,4,3,3,2,2,1, 1,1,4,4,5,5,4,3,3,2,2,1,1,1],
+    lh:"C3:5/4 F3:2/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/4 F3:2/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/2",
+    tip:"Vasen käsi pysyy paikallaan: pikkusormi C:llä, toinen sormi F:llä ja peukalo G:llä. Bassosävel vaihtuu kahden iskun välein." },
+  { id:"kaanon", title:"Jaakko kulta · kaanon", level:"Kaksi kättä · vaikea", bpm:92, hands:2,
+    rh:"G4 A4 H4 G4 G4 A4 H4 G4 H4 C5 D5/2 H4 C5 D5/2 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 G4 D4 G4/2 G4 D4 G4/2",
+    lh:"R/8 G2 A2 H2 G2 G2 A2 H2 G2 H2 C3 D3/2 H2 C3 D3/2 D3/0.5 E3/0.5 D3/0.5 C3/0.5 H2 G2 D3/0.5 E3/0.5 D3/0.5 C3/0.5 H2 G2 G2 D2 G2/2 G2 D2 G2/2",
+    lyrics:"Jaak ko kul ta, Jaak ko kul ta, he rää jo, he rää jo, kel lo ja si soi ta, kel lo ja si soi ta, pim pom pom, pim pom pom.",
+    tip:"Kaanonissa vasen käsi aloittaa saman melodian kaksi oktaavia alempaa, kun oikea käsi on soittanut kaksi tahtia. Kädet soittavat eri kohtaa samasta laulusta." },
+  { id:"elise", title:"Für Elise · alku", level:"Kaksi kättä · vaikea", bpm:52, hands:2,
+    rh:"E5/0.25 D#5/0.25 E5/0.25 D#5/0.25 E5/0.25 H4/0.25 D5/0.25 C5/0.25 A4/0.5 R/0.25 C4/0.25 E4/0.25 A4/0.25 H4/0.5 R/0.25 E4/0.25 G#4/0.25 H4/0.25 C5/0.5 R/0.25 E4/0.25 E5/0.25 D#5/0.25 E5/0.25 D#5/0.25 E5/0.25 H4/0.25 D5/0.25 C5/0.25 A4/0.5 R/0.25 C4/0.25 E4/0.25 A4/0.25 H4/0.5 R/0.25 E4/0.25 C5/0.25 H4/0.25 A4/1.5",
+    lh:"R/2 A2/0.25 E3/0.25 A3/0.25 R/0.75 E2/0.25 E3/0.25 G#3/0.25 R/0.75 A2/0.25 E3/0.25 A3/0.25 R/0.75 R/1.5 A2/0.25 E3/0.25 A3/0.25 R/0.75 E2/0.25 E3/0.25 G#3/0.25 R/0.75 A2/1.5",
+    tip:"Beethovenin kappaleessa kädet vuorottelevat: vasen käsi soittaa murtosoinnun alaspäin, ja oikea käsi jatkaa siitä ylöspäin. Kuudestoistaosanuotit (kaksi väkää) soitetaan tasaisesti." },
 ].map(s => {
-  const notes = s.notes.split(" ").map(parseNote);
+  const steps = buildSteps([{ hand: "R", seq: s.rh }, ...(s.lh ? [{ hand: "L", seq: s.lh }] : [])]);
   const lyr = s.lyrics ? s.lyrics.split(" ") : [];
-  const CF = {60:1,62:2,64:3,65:4,67:5};
-  notes.forEach((n,i) => { n.lyric = lyr[i] || ""; n.finger = s.fingers ? s.fingers[i] : (s.cpos ? CF[n.midi] : null); });
-  return {...s, notes};
+  let ri = 0;
+  for (const st of steps) for (const n of st.notes) if (n.hand === "R"){
+    if (n.finger == null) n.finger = s.fingers ? s.fingers[ri] : (s.cpos ? CPOS[n.midi] : null);
+    n.lyric = lyr[ri] || ""; ri++;
+  }
+  const all = steps.flatMap(st => st.notes.map(n => n.midi));
+  return { ...s, hands: s.hands || 1, steps, count: all.length, lo: Math.min(...all), hi: Math.max(...all) };
 });
 
-const songState = { song: SONGS[1], pos: 0, errors: 0, playing: null };
+const songState = { song: SONGS[1], pos: 0, errors: 0, hits: new Set(), playing: null };
 const best = store.get("best", {});
-const $ = id => document.getElementById(id);
 
 function renderSongList(){
   $("songlist").innerHTML = SONGS.map(s => `<button class="song" data-id="${s.id}" aria-pressed="${s===songState.song}">
     <b>${s.title}</b><small>${s.level}${best[s.id]!=null ? ` · <span class="done">✓ ${best[s.id]===0 ? "virheetön" : best[s.id]+" virhettä"}</span>` : ""}</small></button>`).join("");
 }
 $("songlist").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return;
-  stopListen(); songState.song = SONGS.find(s => s.id === b.dataset.id); resetSong(); });
+  stopListen(); songState.song = SONGS.find(s => s.id === b.dataset.id); store.set("song", songState.song.id); resetSong(); });
 
-function resetSong(){ songState.pos = 0; songState.errors = 0; $("song-done").hidden = true; setStatus("", ""); renderSong(); renderSongList(); }
+function songKeyboard(){ const s = songState.song; if (s.hands === 1) buildKeyboard(60, 84); else buildKeyboard(...rangeFor(s.lo, s.hi)); }
+function resetSong(){
+  songState.pos = 0; songState.errors = 0; songState.hits.clear(); mic.chord?.reset();
+  $("song-done").hidden = true; setStatus("", "");
+  if (currentView === "songs") songKeyboard();
+  renderSong(); renderSongList();
+}
 function setStatus(t, cls){ const s = $("song-status"); s.textContent = t; s.className = "status " + cls; }
+const handWord = h => h === "L" ? "vasen" : "oikea";
+function stepNames(notes){ return notes.map(n => nameOf(n.midi) + octOf(n.midi) + (songState.song.hands === 2 ? ` (${handWord(n.hand)})` : "")).join(" + "); }
+function drawSongStaff(at, playing){
+  const { song } = songState, N = song.steps.length;
+  const start = Math.max(0, Math.min(at-2, N-8));
+  drawStaff($("song-staff"), song.steps.slice(start, start+8).map((st,i) => ({ notes: st.notes,
+    state: start+i === at ? "now" : (!playing && start+i < at) ? "past" : "" })), { dx: 66, grand: song.hands === 2 });
+}
 function renderSong(){
-  const {song, pos} = songState, N = song.notes.length;
+  const { song, pos } = songState, N = song.steps.length;
   $("song-title").textContent = song.title;
-  $("song-meta").textContent = `${song.level} · ${N} nuottia`;
+  $("song-meta").textContent = `${song.level} · ${song.count} nuottia`;
+  $("hand-legend").hidden = song.hands !== 2;
   $("song-prog").style.width = (pos/N*100)+"%";
-  const start = Math.max(0, Math.min(pos-2, N-8)), win = song.notes.slice(start, start+8);
-  drawStaff($("song-staff"), win.map((n,i) => ({...n, state: start+i < pos ? "past" : start+i === pos ? "now" : ""})), {dx:66});
-  $("song-chips").innerHTML = song.notes.map((n,i) => `<div class="chip ${i<pos?"past":i===pos?"now":""}">
-    <span class="n">${nameOf(n.midi)}</span>${n.finger?`<span class="f">${n.finger}</span>`:""}${n.lyric?`<span class="l">${n.lyric}</span>`:""}</div>`).join("");
-  if (currentView === "songs") setTargets(pos < N ? [song.notes[pos].midi] : []);
+  drawSongStaff(pos, false);
+  $("song-chips").innerHTML = song.steps.map((st,i) => {
+    const r = st.notes.filter(n => n.hand === "R"), l = st.notes.filter(n => n.hand === "L");
+    const names = ns => ns.map(n => nameOf(n.midi)).join(" "), fing = ns => ns.map(n => n.finger || "").join(" ").trim();
+    const lyric = r.find(n => n.lyric)?.lyric || "";
+    return `<div class="chip ${i<pos?"past":i===pos?"now":""}">` +
+      (r.length ? `<span class="n">${names(r)}</span>${fing(r) ? `<span class="f">${fing(r)}</span>` : ""}` : "") +
+      (l.length ? `<span class="n lh">${names(l)}</span>${fing(l) ? `<span class="f lh">${fing(l)}</span>` : ""}` : "") +
+      (lyric ? `<span class="l">${lyric}</span>` : "") + `</div>`;
+  }).join("");
+  if (currentView === "songs") showStepTargets();
+}
+function showStepTargets(){
+  clearTargets();
+  const st = songState.song.steps[songState.pos]; if (!st) return;
+  for (const n of st.notes) if (!songState.hits.has(n.midi)) keyEls[n.midi]?.classList.add(n.hand === "L" ? "target-lh" : "target");
+  reveal(st.notes.map(n => n.midi));
+}
+function advance(){
+  const { song } = songState;
+  songState.pos++; songState.hits.clear();
+  setStatus(["Hyvä!","Oikein!","Juuri noin.","Hienoa!"][songState.pos % 4], "ok");
+  if (songState.pos >= song.steps.length){
+    const prev = best[song.id]; if (prev == null || songState.errors < prev){ best[song.id] = songState.errors; store.set("best", best); }
+    setStatus("Valmis!", "ok");
+    const d = $("song-done"); d.hidden = false;
+    d.innerHTML = `<b>Soitit kappaleen ${song.title} loppuun${songState.errors ? `, ${songState.errors} virhettä` : " ilman virheitä"}.</b> ${song.tip}`;
+    renderSongList();
+  }
+  renderSong();
 }
 function songNote(m, fromMic){
-  const {song} = songState; if (songState.playing || songState.pos >= song.notes.length) return;
-  const want = song.notes[songState.pos].midi;
+  const { song } = songState; if (songState.playing || songState.pos >= song.steps.length) return;
+  if (fromMic && song.hands === 2) return; // two-hand songs are checked from the sound spectrum (songHeard)
+  const st = song.steps[songState.pos], want = st.notes.map(n => n.midi);
   // From the real piano the right note name in any octave counts, so an octave slip does not stall the song.
-  if (m === want || (fromMic && (m - want) % 12 === 0)){
-    flash(m, "ok", 220); songState.pos++;
-    setStatus(["Hyvä!","Oikein!","Juuri noin.","Hienoa!"][songState.pos % 4], "ok");
-    if (songState.pos >= song.notes.length){
-      const prev = best[song.id]; if (prev == null || songState.errors < prev){ best[song.id] = songState.errors; store.set("best", best); }
-      setStatus("Valmis!", "ok");
-      const d = $("song-done"); d.hidden = false;
-      d.innerHTML = `<b>Soitit kappaleen ${song.title} loppuun${songState.errors ? `, ${songState.errors} virhettä` : " ilman virheitä"}.</b> ${song.tip}`;
-      renderSongList();
-    }
-    renderSong();
+  const match = want.find(w => w === m) ?? (fromMic && want.length === 1 && (m - want[0]) % 12 === 0 ? want[0] : undefined);
+  if (match !== undefined){
+    flash(m, "ok", 220); songState.hits.add(match);
+    if (want.every(w => songState.hits.has(w))) advance();
+    else { const left = st.notes.filter(n => !songState.hits.has(n.midi)); setStatus(`Hyvä. Soita vielä ${stepNames(left)}.`, "ok"); showStepTargets(); }
   } else {
     songState.errors++; flash(m, "bad");
-    setStatus(`Tuo oli ${nameOf(m)}. Etsi ${nameOf(want)}, keltainen kosketin.`, "bad");
+    setStatus(`Tuo oli ${nameOf(m)}${octOf(m)}. Soita ${stepNames(st.notes)}.`, "bad");
+  }
+}
+// Result of the microphone check for a two-hand step (see chordCheck).
+function songHeard(res){
+  const { song } = songState; if (songState.playing || songState.pos >= song.steps.length) return;
+  const st = song.steps[songState.pos];
+  if (res.ok){ for (const n of st.notes) flash(n.midi, "ok", 260); advance(); }
+  else {
+    songState.errors++;
+    const miss = st.notes.filter(n => res.missing.includes(n.midi));
+    setStatus(`Kuulin äänen, mutta en löytänyt säveltä ${stepNames(miss)}. Yritä uudelleen.`, "bad");
   }
 }
 function listen(){
   if (songState.playing){ stopListen(); return; }
-  audio(); const {song} = songState, beat = 60/song.bpm*1000;
-  $("song-listen").textContent = "■ Pysäytä"; setTargets([]);
+  audio(); const { song } = songState, beat = 60/song.bpm*1000;
+  $("song-listen").textContent = "■ Pysäytä"; clearTargets();
   let i = 0; const timers = []; songState.playing = timers;
   const step = () => {
-    if (i >= song.notes.length || songState.playing !== timers){ stopListen(); return; }
-    const n = song.notes[i];
-    noteOn(n.midi, 0.8); keyEls[n.midi]?.classList.add("down");
-    drawStaff($("song-staff"), song.notes.slice(Math.max(0,Math.min(i-2, song.notes.length-8)), Math.max(0,Math.min(i-2, song.notes.length-8))+8)
-      .map((x,j) => ({...x, state: Math.max(0,Math.min(i-2, song.notes.length-8))+j === i ? "now" : ""})), {dx:66});
-    const len = n.dur*beat;
-    timers.push(setTimeout(() => { noteOff(n.midi); keyEls[n.midi]?.classList.remove("down"); }, len*0.85));
-    i++; timers.push(setTimeout(step, len));
+    if (i >= song.steps.length || songState.playing !== timers){ stopListen(); return; }
+    const st = song.steps[i];
+    for (const n of st.notes){
+      noteOn(n.midi, 0.75); keyEls[n.midi]?.classList.add("down");
+      timers.push(setTimeout(() => { noteOff(n.midi); keyEls[n.midi]?.classList.remove("down"); }, n.dur*beat*0.9));
+    }
+    drawSongStaff(i, true); reveal(st.notes.map(n => n.midi));
+    i++; timers.push(setTimeout(step, st.len*beat));
   };
   step();
 }
@@ -511,10 +681,13 @@ $("song-restart").onclick = () => { stopListen(); resetSong(); };
 
 /* ---------- quiz ---------- */
 const quiz = { target: 64, score: 0, streak: 0, best: store.get("qbest", 0), misses: 0, locked: false };
+const QRANGE = { treble: [60, 84], bass: [43, 60], both: [43, 84] };
 function quizMode(){ return document.querySelector('input[name="qmode"]:checked').value; }
+function quizClef(){ return $("q-clef").value; }
+function quizKeyboard(){ buildKeyboard(...rangeFor(...QRANGE[quizClef()])); }
 function newTarget(){
-  const sharps = $("q-sharps").checked;
-  const pool = []; for (let m=LOW; m<=HIGH; m++) if (sharps || !isBlack(m)) pool.push(m);
+  const sharps = $("q-sharps").checked, [lo, hi] = QRANGE[quizClef()];
+  const pool = []; for (let m=lo; m<=hi; m++) if (sharps || !isBlack(m)) pool.push(m);
   let t; do { t = pool[Math.floor(Math.random()*pool.length)]; } while (t === quiz.target && pool.length > 1);
   quiz.target = t; quiz.misses = 0; quiz.locked = false; renderQuiz();
 }
@@ -523,9 +696,9 @@ function renderQuiz(state=""){
   $("quiz-name").hidden = !byName; $("quiz-staff").style.display = byName ? "none" : "";
   $("quiz-name").textContent = nameOf(quiz.target);
   $("quiz-q").textContent = byName ? "Etsi tämä kosketin" : "Mikä nuotti tämä on?";
-  drawStaff($("quiz-staff"), [{midi: quiz.target, dur: 1, state}], {dx:120});
-  $("q-score").textContent = quiz.score; $("q-streak").textContent = quiz.streak; $("q-best").textContent = quiz.best;
-  if (currentView === "quiz") setTargets([]);
+  drawStaff($("quiz-staff"), [{ midi: quiz.target, dur: 1, state }], { dx: 120, grand: quizClef() !== "treble" });
+  renderQuizStats();
+  if (currentView === "quiz") clearTargets();
 }
 function quizNote(m){
   if (quiz.locked) return;
@@ -535,32 +708,35 @@ function quizNote(m){
   if (right){
     quiz.locked = true; quiz.score++; quiz.streak++;
     if (quiz.streak > quiz.best){ quiz.best = quiz.streak; store.set("qbest", quiz.best); }
-    flash(m, "ok", 450); st.textContent = `Oikein, se on ${nameOf(quiz.target)}.`; st.className = "status ok";
+    flash(m, "ok", 450); st.textContent = `Oikein, se on ${nameOf(quiz.target)}${byName ? "" : octOf(quiz.target)}.`; st.className = "status ok";
     renderQuiz("ok"); setTimeout(newTarget, 650);
   } else {
     quiz.streak = 0; quiz.misses++; flash(m, "bad");
-    st.textContent = `Painoit ${nameOf(m)}.` + (quiz.misses >= 2 ? " Oikea kosketin näkyy nyt keltaisena." : " Yritä uudelleen."); st.className = "status bad";
+    st.textContent = `Painoit ${nameOf(m)}${octOf(m)}.` + (quiz.misses >= 2 ? " Oikea kosketin näkyy nyt keltaisena." : " Yritä uudelleen."); st.className = "status bad";
     if (quiz.misses >= 2) showHint();
     renderQuizStats();
   }
 }
 function renderQuizStats(){ $("q-score").textContent = quiz.score; $("q-streak").textContent = quiz.streak; $("q-best").textContent = quiz.best; }
 function showHint(){
-  if (quizMode() === "name"){ const l = []; for (let m=LOW; m<=HIGH; m++) if (m%12 === quiz.target%12) l.push(m); setTargets(l); }
+  if (quizMode() === "name"){ const l = []; for (let m=kb.lo; m<=kb.hi; m++) if (m%12 === quiz.target%12) l.push(m); setTargets(l); }
   else setTargets([quiz.target]);
 }
 $("quiz-hint").onclick = () => { quiz.streak = 0; renderQuizStats(); showHint(); };
-$("quiz-skip").onclick = () => { quiz.streak = 0; $("quiz-status").textContent = `Se oli ${nameOf(quiz.target)}.`; $("quiz-status").className = "status"; newTarget(); };
+$("quiz-skip").onclick = () => { quiz.streak = 0; $("quiz-status").textContent = `Se oli ${nameOf(quiz.target)}${octOf(quiz.target)}.`; $("quiz-status").className = "status"; newTarget(); };
 document.querySelectorAll('input[name="qmode"]').forEach(r => r.onchange = () => { store.set("qmode", quizMode()); newTarget(); });
 $("q-sharps").onchange = () => { store.set("qsharps", $("q-sharps").checked); newTarget(); };
+$("q-clef").onchange = () => { store.set("qclef", quizClef()); if (currentView === "quiz"){ quizKeyboard(); reveal([quizClef() === "bass" ? 52 : 60]); } newTarget(); };
 if (store.get("qmode","staff") === "name") $("qmode-name").checked = true;
 $("q-sharps").checked = store.get("qsharps", false);
+$("q-clef").value = QRANGE[store.get("qclef", "treble")] ? store.get("qclef", "treble") : "treble";
 
 /* ---------- free play ---------- */
-let freeNotes = [{midi:60},{midi:64},{midi:67},{midi:72}];
+let freeNotes = [{midi:48},{midi:60},{midi:64},{midi:67},{midi:72}];
 function renderFree(){
-  drawStaff($("free-staff"), freeNotes.map((n,i) => ({...n, state: i === freeNotes.length-1 ? "now" : ""})), {dx:66});
-  $("free-name").textContent = freeNotes.length ? nameOf(freeNotes[freeNotes.length-1].midi) : "–";
+  drawStaff($("free-staff"), freeNotes.map((n,i) => ({ ...n, state: i === freeNotes.length-1 ? "now" : "" })), { dx: 66, grand: true });
+  const last = freeNotes[freeNotes.length-1];
+  $("free-name").innerHTML = last ? `${nameOf(last.midi)}<small style="font-size:.4em">${octOf(last.midi)}</small>` : "–";
 }
 $("free-clear").onclick = () => { freeNotes = []; renderFree(); };
 
@@ -591,7 +767,7 @@ function createDetector(sr){
     size: N,
     setSensitivity(v){ sens = Math.max(0, Math.min(1, v)); },
     reset(){ sounding = null; armed = null; cand = null; },
-    // x: newest samples at the end. t: time in seconds. Returns note on/off events.
+    // x: newest samples at the end. t: time in seconds. Returns onset and note on/off events.
     process(x, t){
       const off = x.length - N; let e = 0;
       for (let i = x.length-512; i < x.length; i++) e += x[i]*x[i];
@@ -611,7 +787,7 @@ function createDetector(sr){
       // compared with the loudest of the last 3 frames, so beating in a ringing string is not a new strike
       const louder = rms > Math.max(...recent)*1.4;
       const brighter = hf > Math.max(...recentHf)*1.8 && hf > hfFloor*4;
-      if (rms > gate && (louder || brighter) && t - lastOnset > 0.08){ armed = { t, last: null, n: 0 }; lastOnset = t; cand = null; }
+      if (rms > gate && (louder || brighter) && t - lastOnset > 0.08){ armed = { t, last: null, n: 0 }; lastOnset = t; cand = null; events.push({ type:"onset" }); }
       recent.shift(); recent.push(rms); recentHf.shift(); recentHf.push(hf);
       if (armed){
         if (m != null && t - armed.t >= 0.03){ // wait until the analysis window holds mostly the new note
@@ -633,8 +809,79 @@ function createDetector(sr){
 }
 // DETECTOR-END
 
+// CHORD-START
+// Two hands: we know which notes should sound, so after a key strike we check, note by note, that the
+// partials of each expected note rose in the spectrum (dB, as AnalyserNode gives) compared with just before it.
+function chordCheck(base, now, binHz, midis){
+  const lim = Math.min(now.length-4, Math.floor(5000/binHz));
+  const v = a => (a > -200 ? a : -200);
+  let peak = -200; for (let i=3; i<=lim; i++) if (v(now[i]) > peak) peak = v(now[i]);
+  const partial = (f, h) => Math.round(h*f*Math.sqrt(1 + 0.0002*h*h)/binHz);
+  const freq = m => 440*Math.pow(2,(m-69)/12);
+  const missing = [], ringing = [];
+  for (const m of midis){
+    // the upper note of an octave pair (C3 + C4) has no partials of its own, so only the lower one is checked
+    if (midis.some(o => o < m && (m - o) % 12 === 0)) continue;
+    const f = freq(m);
+    // partials shared with another note of the same step (e.g. C4 over C3) can't show which note sounded
+    const others = new Set();
+    for (const o of midis) if (o !== m) for (let h=1; h<=12; h++){ const ob = partial(freq(o), h); for (let d=-2; d<=2; d++) others.add(ob+d); }
+    let hits = 0, tried = 0, loudBefore = 0;
+    // low notes: their lowest partials sit too close to the neighbouring key's, so start higher
+    for (let h = f < 150 ? 3 : f < 300 ? 2 : 1; h <= 12 && tried < 6; h++){
+      const b = partial(f, h); if (b+3 > lim) break;
+      if (others.has(b)) continue;
+      tried++;
+      // there must be a spectral peak on this partial (within one bin), not just the slope of a neighbouring key's partial
+      let arg = b-1; for (let i=b; i<=b+1; i++) if (v(now[i]) > v(now[arg])) arg = i;
+      if (!(v(now[arg]) > v(now[arg-1]) && v(now[arg]) > v(now[arg+1]))) continue;
+      const lv = v(now[arg]), lb = Math.max(v(base[b-1]), v(base[b]), v(base[b+1]));
+      if (lb > peak - 30) loudBefore++;
+      const rise = lb > peak - 30 ? 2 : 6; // a note that was still ringing loudly rises less when struck again
+      if (lv > peak - 45 && lv - lb >= rise) hits++;
+    }
+    if (hits < Math.min(2, tried)){ missing.push(m); if (loudBefore >= Math.min(2, tried)) ringing.push(m); }
+  }
+  return { ok: missing.length === 0, missing, unsure: missing.length > 0 && ringing.length === missing.length };
+}
+
+// Queues one check per key strike. Each check compares the spectrum ~0.1 s after the strike with one from
+// just before it. A failed check is only reported if no later strike is waiting, so a chord played a little
+// unevenly (one hand slightly later) is judged by the later strike.
+// Strikes come from the level detector or from spectral flux: new partials appearing in the spectrum.
+// Flux also catches fast notes next to each other (E-D#-E in Für Elise), where the volume hardly changes.
+function createChordListener(binHz, expect, onResult){
+  const lim = Math.floor(5000/binHz), fluxHist = [];
+  let ring = [], queue = [], lastOnset = -1, prevFlux = 0;
+  return {
+    reset(){ queue = []; },
+    // audible: the level detector hears more than background noise
+    frame(t, spec, levelOnset, audible){
+      const prev = ring[ring.length-1];
+      let peak = -200; for (let i=3; i<=lim; i++) if (spec[i] > peak) peak = spec[i];
+      let flux = 0;
+      if (prev){ const fl = peak - 50; for (let i=3; i<=lim; i++) if (spec[i] > fl){ const d = spec[i] - Math.max(prev[i], fl); if (d > 0) flux += d; } flux /= lim; }
+      const mean = fluxHist.length ? fluxHist.reduce((a,b) => a+b, 0)/fluxHist.length : 0;
+      const fluxOnset = audible && flux > Math.max(2, 1.8*mean) && flux > prevFlux;
+      fluxHist.push(flux); if (fluxHist.length > 30) fluxHist.shift(); prevFlux = flux;
+      ring.push(spec); if (ring.length > 4) ring.shift();
+      if ((levelOnset || fluxOnset) && t - lastOnset > 0.09 && ring.length === 4){ queue.push({ t, due: t + 0.1, base: ring[0] }); lastOnset = t; }
+      while (queue.length && t >= queue[0].due){
+        const p = queue.shift(), midis = expect();
+        if (!midis){ queue = []; break; }
+        if (peak < -80) continue; // nothing but noise: not a key strike
+        const res = chordCheck(p.base, spec, binHz, midis);
+        if (res.ok){ queue = queue.filter(q => q.t - p.t > 0.1); onResult(res); }
+        // if the missing notes were still ringing loudly we can't tell a new strike from the old sound: wait for a clearer one
+        else if (!queue.length && !res.unsure) onResult(res);
+      }
+    }
+  };
+}
+// CHORD-END
+
 const ON_PAGES = "https://svinfun.github.io/Svinfun/keski-c/";
-const mic = { on: false, stream: null, src: null, an: null, det: null, buf: null, raf: 0, held: null, shown: 0 };
+const mic = { on: false, stream: null, src: null, an: null, an2: null, chord: null, det: null, buf: null, raf: 0, held: null, shown: 0 };
 const micBtn = $("mic-btn"), micMsg = $("mic-msg"), micSens = $("mic-sens");
 micSens.value = store.get("sens", 6);
 function micMessage(html){ micMsg.innerHTML = html || ""; micMsg.hidden = !html; }
@@ -656,6 +903,9 @@ async function startMic(){
   const c = audio();
   mic.stream = stream; mic.src = c.createMediaStreamSource(stream);
   mic.an = c.createAnalyser(); mic.an.fftSize = 2048; mic.src.connect(mic.an);
+  mic.an2 = c.createAnalyser(); mic.an2.fftSize = 4096; mic.an2.smoothingTimeConstant = 0; mic.src.connect(mic.an2);
+  mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
+    () => { const st = songState.song.steps[songState.pos]; return st ? st.notes.map(n => n.midi) : null; }, songHeard);
   mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
@@ -667,26 +917,34 @@ function stopMic(){
   mic.stream?.getTracks().forEach(tr => tr.stop());
   try{ mic.src?.disconnect(); }catch(e){}
   if (mic.held != null){ keyEls[mic.held]?.classList.remove("down"); mic.held = null; }
-  mic.on = false; micBtn.setAttribute("aria-pressed", "false"); $("mic-label").textContent = "Kuuntele pianoa";
+  mic.on = false; mic.chord = null; micBtn.setAttribute("aria-pressed", "false"); $("mic-label").textContent = "Kuuntele pianoa";
   $("mic-live").hidden = true;
 }
 function micLoop(){
   if (!mic.on) return;
+  const t = ctx.currentTime;
   mic.an.getFloatTimeDomainData(mic.buf);
-  const r = mic.det.process(mic.buf, ctx.currentTime);
+  const r = mic.det.process(mic.buf, t);
+  const twoHand = currentView === "songs" && songState.song.hands === 2 && songState.pos < songState.song.steps.length;
   const toPct = v => Math.max(0, Math.min(100, (Math.log10(Math.max(v, 1e-4)) + 4) / 4 * 100));
   $("mic-level").style.width = toPct(r.rms) + "%"; $("mic-gate").style.left = toPct(r.gate) + "%";
-  if (synthBusy() || songState.playing){ mic.det.reset(); }
+  const busy = synthBusy() || songState.playing;
+  if (twoHand){
+    const spec = new Float32Array(mic.an2.frequencyBinCount); mic.an2.getFloatFrequencyData(spec);
+    if (busy) mic.chord.reset(); else mic.chord.frame(t, spec, r.events.some(ev => ev.type === "onset"), r.rms > r.gate);
+  } else mic.chord.reset();
+  if (busy) mic.det.reset();
   else for (const ev of r.events){
     if (ev.type === "on"){
+      if (twoHand) continue;
       if (mic.held != null) keyEls[mic.held]?.classList.remove("down");
       mic.held = ev.midi; press(ev.midi, 0, true);
     } else if (ev.midi === mic.held){ keyEls[ev.midi]?.classList.remove("down"); mic.held = null; }
   }
   const now = performance.now();
   if (r.midi != null && r.rms > r.gate && !synthBusy()){
-    const oct = Math.floor(r.midi/12) - 1, out = r.midi < LOW || r.midi > HIGH;
-    $("mic-heard").innerHTML = `${nameOf(r.midi)}<small>${oct}</small> <small>${r.cents >= 0 ? "+" : "−"}${Math.abs(r.cents)} snt${out ? " · ei näytöllä" : ""}</small>`;
+    const out = r.midi < kb.lo || r.midi > kb.hi;
+    $("mic-heard").innerHTML = `${nameOf(r.midi)}<small>${octOf(r.midi)}</small> <small>${r.cents >= 0 ? "+" : "−"}${Math.abs(r.cents)} snt${out ? " · ei näytöllä" : ""}</small>`;
     mic.shown = now;
   } else if (now - mic.shown > 1500) $("mic-heard").textContent = "Kuuntelee…";
   mic.raf = requestAnimationFrame(micLoop);
@@ -699,20 +957,22 @@ let currentView = "songs";
 function onNote(m, fromMic){
   if (currentView === "songs") songNote(m, fromMic);
   else if (currentView === "quiz") quizNote(m);
-  else { freeNotes.push({midi:m}); if (freeNotes.length > 8) freeNotes.shift(); renderFree(); }
+  else { freeNotes.push({ midi: m }); if (freeNotes.length > 8) freeNotes.shift(); renderFree(); }
 }
 function show(view){
   if (view !== "songs") stopListen();
-  currentView = view;
+  currentView = view; mic.chord?.reset();
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
   for (const v of ["songs","quiz","free"]) $("view-"+v).hidden = v !== view;
-  setTargets([]);
+  if (view === "songs") songKeyboard(); else if (view === "quiz") quizKeyboard(); else buildKeyboard(48, 84);
+  clearTargets(); if (view !== "songs") reveal([60]);
   if (view === "songs") renderSong(); else if (view === "quiz") renderQuiz(); else renderFree();
   if (location.hash.slice(1) !== view) history.replaceState(null, "", "#"+view);
 }
 document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(b.dataset.view); });
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (["songs","quiz","free"].includes(h)) show(h); });
 
+songState.song = SONGS.find(s => s.id === store.get("song", "ukko")) || SONGS[1];
 renderSongList(); newTarget();
 const h0 = location.hash.slice(1); show(["songs","quiz","free"].includes(h0) ? h0 : "songs");
 })();
