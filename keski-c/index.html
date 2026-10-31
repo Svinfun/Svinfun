@@ -363,7 +363,8 @@ window.addEventListener("keydown", e => {
 });
 window.addEventListener("keyup", e => { const m = KEYMAP[e.code]; if (m != null) release(m); });
 
-function press(m, vel, silent){ if (!silent) noteOn(m, vel); keyEls[m]?.classList.add("down"); onNote(m); }
+// silent = the note came from the microphone (the real piano already made the sound)
+function press(m, vel, silent){ if (!silent) noteOn(m, vel); keyEls[m]?.classList.add("down"); onNote(m, !!silent); }
 function release(m){ noteOff(m); keyEls[m]?.classList.remove("down"); }
 
 /* MIDI keyboard (works where the browser allows it) */
@@ -462,10 +463,11 @@ function renderSong(){
     <span class="n">${nameOf(n.midi)}</span>${n.finger?`<span class="f">${n.finger}</span>`:""}${n.lyric?`<span class="l">${n.lyric}</span>`:""}</div>`).join("");
   if (currentView === "songs") setTargets(pos < N ? [song.notes[pos].midi] : []);
 }
-function songNote(m){
+function songNote(m, fromMic){
   const {song} = songState; if (songState.playing || songState.pos >= song.notes.length) return;
   const want = song.notes[songState.pos].midi;
-  if (m === want){
+  // From the real piano the right note name in any octave counts, so an octave slip does not stall the song.
+  if (m === want || (fromMic && (m - want) % 12 === 0)){
     flash(m, "ok", 220); songState.pos++;
     setStatus(["Hyvä!","Oikein!","Juuri noin.","Hienoa!"][songState.pos % 4], "ok");
     if (songState.pos >= song.notes.length){
@@ -569,7 +571,7 @@ function createDetector(sr){
   const W = 1024, minTau = Math.floor(sr/2200), maxTau = Math.floor(sr/75); // ~75 Hz (D2) .. 2200 Hz (C7)
   const N = W + maxTau;
   const d = new Float32Array(maxTau+2), cm = new Float32Array(maxTau+2);
-  let floor = 0.002, recent = [0,0,0], sounding = null, armed = null, cand = null, lastOnset = -1, sens = 0.55;
+  let floor = 0.002, recent = [0,0,0], hfFloor = 1e-4, recentHf = [0,0,0], sounding = null, armed = null, cand = null, lastOnset = -1, sens = 0.55;
   function yin(x, off){
     for (let tau=1; tau<=maxTau+1; tau++){
       let s = 0; for (let j=0; j<W; j++){ const v = x[off+j] - x[off+j+tau]; s += v*v; } d[tau] = s;
@@ -594,6 +596,10 @@ function createDetector(sr){
       const off = x.length - N; let e = 0;
       for (let i = x.length-512; i < x.length; i++) e += x[i]*x[i];
       const rms = Math.sqrt(e/512);
+      // high-frequency energy: a hammer strike adds a burst of it even when the phone evens out the volume
+      let h = 0; for (let i = x.length-512; i < x.length; i++){ const v = x[i] - x[i-1]; h += v*v; }
+      const hf = Math.sqrt(h/512);
+      hfFloor = Math.min(0.01, hfFloor + (hf - hfFloor) * (hf < hfFloor ? 0.2 : 0.0004));
       // noise floor: falls fast, rises very slowly and is capped, so continuous playing never raises it above the notes
       floor = Math.min(0.012, floor + (rms - floor) * (rms < floor ? 0.2 : 0.0004));
       const gate = Math.max(floor*2.5, 0.03*Math.pow(0.06, sens));
@@ -603,8 +609,10 @@ function createDetector(sr){
       if (p){ const n = 69 + 12*Math.log2(p.f/440); m = Math.round(n); cents = Math.round((n-m)*100); }
       // a sharp rise in level = a new key strike (also catches the same key played again)
       // compared with the loudest of the last 3 frames, so beating in a ringing string is not a new strike
-      if (rms > gate && rms > Math.max(...recent)*1.4 && t - lastOnset > 0.08){ armed = { t, last: null, n: 0 }; lastOnset = t; cand = null; }
-      recent.shift(); recent.push(rms);
+      const louder = rms > Math.max(...recent)*1.4;
+      const brighter = hf > Math.max(...recentHf)*1.8 && hf > hfFloor*4;
+      if (rms > gate && (louder || brighter) && t - lastOnset > 0.08){ armed = { t, last: null, n: 0 }; lastOnset = t; cand = null; }
+      recent.shift(); recent.push(rms); recentHf.shift(); recentHf.push(hf);
       if (armed){
         if (m != null && t - armed.t >= 0.03){ // wait until the analysis window holds mostly the new note
           if (m === armed.last) armed.n++; else { armed.last = m; armed.n = 1; }
@@ -688,8 +696,8 @@ micSens.oninput = () => { store.set("sens", +micSens.value); mic.det?.setSensiti
 
 /* ---------- routing ---------- */
 let currentView = "songs";
-function onNote(m){
-  if (currentView === "songs") songNote(m);
+function onNote(m, fromMic){
+  if (currentView === "songs") songNote(m, fromMic);
   else if (currentView === "quiz") quizNote(m);
   else { freeNotes.push({midi:m}); if (freeNotes.length > 8) freeNotes.shift(); renderFree(); }
 }
