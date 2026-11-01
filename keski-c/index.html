@@ -289,13 +289,16 @@ function buildSteps(voices){
   for (const v of voices){
     let t = 0;
     for (const tok of v.seq.trim().split(/\s+/)){
-      const n = parseTok(tok);
-      if (!n.rest){
+      // a chord is written with +, e.g. H3+D4+F#4/2: the duration on the last note applies to all
+      const parts = tok.split("+"), last = parseTok(parts[parts.length-1]);
+      for (const part of parts){
+        const n = part === parts[parts.length-1] ? last : { ...parseTok(part + (last.rest ? "" : "/" + last.dur)) };
+        if (n.rest) continue;
         const k = Math.round(t*1000);
         if (!at.has(k)) at.set(k, { t, notes: [] });
-        at.get(k).notes.push({ midi: n.midi, dur: n.dur, hand: v.hand, finger: n.finger });
+        at.get(k).notes.push({ midi: n.midi, dur: last.dur, hand: v.hand, finger: n.finger });
       }
-      t += n.dur;
+      t += last.dur;
     }
   }
   const steps = [...at.values()].sort((a,b) => a.t - b.t);
@@ -560,6 +563,10 @@ const SONGS = [
     rh:"E5/0.25 D#5/0.25 E5/0.25 D#5/0.25 E5/0.25 H4/0.25 D5/0.25 C5/0.25 A4/0.5 R/0.25 C4/0.25 E4/0.25 A4/0.25 H4/0.5 R/0.25 E4/0.25 G#4/0.25 H4/0.25 C5/0.5 R/0.25 E4/0.25 E5/0.25 D#5/0.25 E5/0.25 D#5/0.25 E5/0.25 H4/0.25 D5/0.25 C5/0.25 A4/0.5 R/0.25 C4/0.25 E4/0.25 A4/0.25 H4/0.5 R/0.25 E4/0.25 C5/0.25 H4/0.25 A4/1.5",
     lh:"R/2 A2/0.25 E3/0.25 A3/0.25 R/0.75 E2/0.25 E3/0.25 G#3/0.25 R/0.75 A2/0.25 E3/0.25 A3/0.25 R/0.75 R/1.5 A2/0.25 E3/0.25 A3/0.25 R/0.75 E2/0.25 E3/0.25 G#3/0.25 R/0.75 A2/1.5",
     tip:"Beethovenin kappaleessa kädet vuorottelevat: vasen käsi soittaa murtosoinnun alaspäin, ja oikea käsi jatkaa siitä ylöspäin. Kuudestoistaosanuotit (kaksi väkää) soitetaan tasaisesti." },
+  { id:"gymnopedie", title:"Gymnopédie n:o 1", level:"Klassikko · keskitaso", bpm:66, hands:2,
+    rh:"R/12 R F#5 A5 G5 F#5 C#5 H4 C#5 D5 A4/3 F#4/12",
+    lh:"G2 H3+D4+F#4/2 D2 A3+C#4+F#4/2 G2 H3+D4+F#4/2 D2 A3+C#4+F#4/2 G2 H3+D4+F#4/2 D2 A3+C#4+F#4/2 G2 H3+D4+F#4/2 D2 A3+C#4+F#4/2 G2 H3+D4/2 D2 A3+C#4/2 G2 H3+D4/2 D2 A3+C#4/2",
+    tip:"Erik Satie sävelsi Gymnopédiet vuonna 1888. Esitysohje Lent et douloureux tarkoittaa hitaasti ja surumielisesti. Vasen käsi soittaa ensin matalan bassosävelen ja hyppää sitten soinnulle. Neljä tahtia vasenta kättä yksin, sitten oikean käden melodia." },
   { id:"entertainer", title:"The Entertainer", level:"Klassikko · vaikea", bpm:60, hands:2,
     rh:"D4/0.25 D#4/0.25 E4/0.25 C5/0.5 E4/0.25 C5/0.5 E4/0.25 C5/1.25 C5/0.25 D5/0.25 D#5/0.25 E5/0.25 C5/0.25 D5/0.25 E5/0.5 H4/0.25 D5/0.5 C5/1.75 D4/0.25 D#4/0.25 E4/0.25 C5/0.5 E4/0.25 C5/0.5 E4/0.25 C5/1.25 A4/0.25 G4/0.25 F#4/0.25 A4/0.25 C5/0.25 E5/0.5 D5/0.25 C5/0.25 A4/0.25 D5/2 D4/0.25 D#4/0.25 E4/0.25 C5/0.5 E4/0.25 C5/0.5 E4/0.25 C5/1.25 C5/0.25 D5/0.25 D#5/0.25 E5/0.25 C5/0.25 D5/0.25 E5/0.5 H4/0.25 D5/0.5 C5/2.25",
     lh:"R/0.5 C3 G3 C3 G3 G2 D3 C3 G3 C3 G3 C3 D3 G2 D3 G2 D3 C3 G3 C3 G3 G2 D3 C3/2",
@@ -569,10 +576,10 @@ const SONGS = [
     lh:"D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3/4",
     tip:"Johann Pachelbelin kaanonissa basso toistaa samaa kahdeksan sävelen kulkua koko kappaleen ajan. Vasen käsi aloittaa yksin, ja oikea käsi tulee mukaan kolmannessa tahdissa. Oikea käsi soittaa kolme eri muunnelmaa, viimeisen kahdeksasosina." },
   { id:"preludi", title:"Preludi C-duuri", level:"Klassikko · vaikea", bpm:84, hands:2,
-    rh:"R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5 R A4/0.5 D5/0.5 F5/0.5 A4/0.5 D5/0.5 F5/0.5 R G4/0.5 D5/0.5 F5/0.5 G4/0.5 D5/0.5 F5/0.5 R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5 R A4/0.5 E5/0.5 A5/0.5 A4/0.5 E5/0.5 A5/0.5 R F#4/0.5 A4/0.5 D5/0.5 F#4/0.5 A4/0.5 D5/0.5 R G4/0.5 D5/0.5 G5/0.5 G4/0.5 D5/0.5 G5/0.5 R E4/0.5 G4/0.5 C5/0.5 E4/0.5 G4/0.5 C5/0.5 R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5",
-    lh:"C4:5/4 C4:5/4 H3:5/4 C4:5/4 C4:5/4 C4:5/4 H3:5/4 H3:5/4 C4:5/4",
-    lh2:"R/0.5 E4:3/3.5 R/0.5 D4:4/3.5 R/0.5 D4:3/3.5 R/0.5 E4:3/3.5 R/0.5 E4:3/3.5 R/0.5 D4:4/3.5 R/0.5 D4:3/3.5 R/0.5 C4:4/3.5 R/0.5 E4:3/3.5",
-    tip:"Bachin C-duuripreludi (Das wohltemperierte Klavier I, 1722) rakentuu murtosoinnuista: vasen käsi soittaa kaksi alinta säveltä ja pitää ne pohjassa, ja oikea käsi jatkaa samasta soinnusta ylöspäin. Alkuperäisessä jokainen kuvio soitetaan kahdesti, tässä kerran." },
+    rh:"R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5 R A4/0.5 D5/0.5 F5/0.5 A4/0.5 D5/0.5 F5/0.5 R G4/0.5 D5/0.5 F5/0.5 G4/0.5 D5/0.5 F5/0.5 R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5 R A4/0.5 E5/0.5 A5/0.5 A4/0.5 E5/0.5 A5/0.5 R F#4/0.5 A4/0.5 D5/0.5 F#4/0.5 A4/0.5 D5/0.5 R G4/0.5 D5/0.5 G5/0.5 G4/0.5 D5/0.5 G5/0.5 R E4/0.5 G4/0.5 C5/0.5 E4/0.5 G4/0.5 C5/0.5 R E4/0.5 G4/0.5 C5/0.5 E4/0.5 G4/0.5 C5/0.5 R D4/0.5 F#4/0.5 C5/0.5 D4/0.5 F#4/0.5 C5/0.5 R D4/0.5 G4/0.5 H4/0.5 D4/0.5 G4/0.5 H4/0.5 R E4/0.5 G4/0.5 C#5/0.5 E4/0.5 G4/0.5 C#5/0.5 R D4/0.5 A4/0.5 D5/0.5 D4/0.5 A4/0.5 D5/0.5 R D4/0.5 F4/0.5 H4/0.5 D4/0.5 F4/0.5 H4/0.5 R C4/0.5 G4/0.5 C5/0.5 C4/0.5 G4/0.5 C5/0.5 R A3/0.5 C4/0.5 F4/0.5 A3/0.5 C4/0.5 F4/0.5 R A3/0.5 C4/0.5 F4/0.5 A3/0.5 C4/0.5 F4/0.5 R G3/0.5 H3/0.5 F4/0.5 G3/0.5 H3/0.5 F4/0.5 R G3/0.5 C4/0.5 E4/0.5 G3/0.5 C4/0.5 E4/0.5",
+    lh:"C4/4 C4/4 H3/4 C4/4 C4/4 C4/4 H3/4 H3/4 A3/4 D3/4 G3/4 G3/4 F3/4 F3/4 E3/4 E3/4 D3/4 G2/4 C3/4",
+    lh2:"R/0.5 E4/3.5 R/0.5 D4/3.5 R/0.5 D4/3.5 R/0.5 E4/3.5 R/0.5 E4/3.5 R/0.5 D4/3.5 R/0.5 D4/3.5 R/0.5 C4/3.5 R/0.5 C4/3.5 R/0.5 A3/3.5 R/0.5 H3/3.5 R/0.5 A#3/3.5 R/0.5 A3/3.5 R/0.5 G#3/3.5 R/0.5 G3/3.5 R/0.5 F3/3.5 R/0.5 F3/3.5 R/0.5 D3/3.5 R/0.5 E3/3.5",
+    tip:"Bachin C-duuripreludi (Das wohltemperierte Klavier I, 1722) rakentuu murtosoinnuista: vasen käsi soittaa kaksi alinta säveltä ja pitää ne pohjassa, ja oikea käsi jatkaa samasta soinnusta ylöspäin. Tässä ovat tahdit 1–19, joiden lopussa palataan C-duuriin. Alkuperäisessä jokainen kuvio soitetaan kahdesti, tässä kerran." },
 ].map(s => {
   const steps = buildSteps([{ hand: "R", seq: s.rh }, ...(s.lh ? [{ hand: "L", seq: s.lh }] : []), ...(s.lh2 ? [{ hand: "L", seq: s.lh2 }] : [])]);
   const lyr = s.lyrics ? s.lyrics.split(" ") : [];
