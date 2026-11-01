@@ -95,7 +95,7 @@ function listen(steps, opt = {}, mode = "song"){
   let pos = 0; const errs = [];
   const L = lib.createChordListener(sr/F, () => pos < steps.length ? steps[pos].notes.map(n => n.midi) : null, res => {
     if (res.ok || (mode === "chords" && res.unsure)){ pos++; return; }
-    if (res.unsure || res.maybe) return;
+    if (mode === "song" && (res.unsure || res.maybe)) return; // songs wait when they can't tell (songHeard)
     errs.push({ step: pos, missing: res.missing });
   }, () => mode === "chords" ? lib.FLUX_CHORDS : lib.FLUX_SONG);
   for (let e = F; e < x.length && pos < steps.length; e += hop){
