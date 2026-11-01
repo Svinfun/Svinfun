@@ -584,6 +584,10 @@ const SONGS = [
     rh:"D4/0.25 D#4/0.25 E4/0.25 C5/0.5 E4/0.25 C5/0.5 E4/0.25 C5/1.25 C5/0.25 D5/0.25 D#5/0.25 E5/0.25 C5/0.25 D5/0.25 E5/0.5 H4/0.25 D5/0.5 C5/1.75 D4/0.25 D#4/0.25 E4/0.25 C5/0.5 E4/0.25 C5/0.5 E4/0.25 C5/1.25 A4/0.25 G4/0.25 F#4/0.25 A4/0.25 C5/0.25 E5/0.5 D5/0.25 C5/0.25 A4/0.25 D5/2 D4/0.25 D#4/0.25 E4/0.25 C5/0.5 E4/0.25 C5/0.5 E4/0.25 C5/1.25 C5/0.25 D5/0.25 D#5/0.25 E5/0.25 C5/0.25 D5/0.25 E5/0.5 H4/0.25 D5/0.5 C5/2.25",
     lh:"R/0.5 C3 G3 C3 G3 G2 D3 C3 G3 C3 G3 C3 D3 G2 D3 G2 D3 C3 G3 C3 G3 G2 D3 C3/2",
     tip:"Scott Joplinin ragtime vuodelta 1902 tuli tutuksi elokuvasta Pistos (1973). Melodiassa on paljon synkooppeja: pitkä sävel alkaa jo ennen iskua. Joplin neuvoi, ettei ragtimea pidä koskaan soittaa nopeasti. Vasen käsi soittaa bassosävelen ja kvintin vuorotellen." },
+  { id:"turkkilainen", title:"Turkkilainen marssi", level:"Klassikko · vaikea", bpm:72, hands:2,
+    rh:"H4/0.25 A4/0.25 G#4/0.25 A4/0.25 C5/0.5 R/0.5 D5/0.25 C5/0.25 H4/0.25 C5/0.25 E5/0.5 R/0.5 F5/0.25 E5/0.25 D#5/0.25 E5/0.25 H5/0.25 A5/0.25 G#5/0.25 A5/0.25 H5/0.25 A5/0.25 G#5/0.25 A5/0.25 C6 A5/0.5 C6/0.5 H5/0.5 A5/0.5 G5/0.5 A5/0.5 H5/0.5 A5/0.5 G5/0.5 A5/0.5 H5/0.5 A5/0.5 G5/0.5 F#5/0.5 E5/2",
+    lh:"R/1 A3/0.5 C4+E4/0.5 C4+E4/0.5 C4+E4/0.5 A3/0.5 C4+E4/0.5 C4+E4/0.5 C4+E4/0.5 A3/0.5 C4+E4/0.5 C4+E4/0.5 C4+E4/0.5 A3/0.5 C4+E4/0.5 C4+E4/0.5 C4+E4/0.5 E3/0.5 G3+H3/0.5 G3+H3/0.5 G3+H3/0.5 E3/0.5 G3+H3/0.5 G3+H3/0.5 G3+H3/0.5 H2/0.5 D#3+A3/0.5 D#3+A3/0.5 D#3+A3/0.5 E3/2",
+    tip:"Mozartin pianosonaatin A-duuri KV 331 (noin 1783) viimeinen osa, Rondo alla turca, jäljittelee turkkilaisten janitsaarisoittokuntien rytmiä. Tässä on kappaleen alku, joka päättyy E-duurisointuun. Kuudestoistaosat soitetaan kevyesti, ja vasemman käden soinnut lyhyesti." },
   { id:"pachelbel", title:"Kaanon D-duuri", level:"Klassikko · vaikea", bpm:76, hands:2,
     rh:"R/8 F#5 E5 D5 C#5 H4 A4 H4 C#5 D5 C#5 H4 A4 G4 F#4 G4 E4 D4/0.5 F#4/0.5 A4/0.5 G4/0.5 F#4/0.5 D4/0.5 F#4/0.5 E4/0.5 D4/0.5 H3/0.5 D4/0.5 A4/0.5 G4/0.5 H4/0.5 A4/0.5 G4/0.5 F#4/4",
     lh:"D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3/4",
@@ -867,11 +871,11 @@ function chordCheck(base, now, binHz, midis){
     // partials shared with another note of the same step (e.g. C4 over C3) can't show which note sounded
     const others = new Set();
     for (const o of midis) if (o !== m) for (let h=1; h<=12; h++){ const ob = partial(freq(o), h); for (let d=-2; d<=2; d++) others.add(ob+d); }
-    let hits = 0, tried = 0, loudBefore = 0;
+    let hits = 0, tried = 0, loudBefore = 0, shared = 0;
     // low notes: their lowest partials sit too close to the neighbouring key's, so start higher
     for (let h = f < 150 ? 3 : f < 300 ? 2 : 1; h <= 12 && tried < 6; h++){
       const b = partial(f, h); if (b+3 > lim) break;
-      if (others.has(b)) continue;
+      if (others.has(b)){ shared++; continue; }
       tried++;
       // there must be a spectral peak on this partial (within one bin), not just the slope of a neighbouring key's partial
       let arg = b-1; for (let i=b; i<=b+1; i++) if (v(now[i]) > v(now[arg])) arg = i;
@@ -881,7 +885,11 @@ function chordCheck(base, now, binHz, midis){
       const rise = lb > peak - 30 ? 2 : 6; // a note that was still ringing loudly rises less when struck again
       if (lv > peak - 45 && lv - lb >= rise) hits++;
     }
-    if (hits < Math.min(2, tried)){ missing.push(m); if (loudBefore >= Math.min(2, tried)) ringing.push(m); }
+    // too few partials of its own (e.g. B5 over E4, whose 3rd partial is B5): can't be judged, like an octave
+    if (tried < 2 && shared >= 2) continue;
+    // mostly shared partials: one clear partial of its own is enough
+    const need = shared >= tried ? Math.min(1, tried) : Math.min(2, tried);
+    if (hits < need){ missing.push(m); if (loudBefore >= need) ringing.push(m); }
   }
   return { ok: missing.length === 0, missing, unsure: missing.length > 0 && ringing.length === missing.length };
 }
