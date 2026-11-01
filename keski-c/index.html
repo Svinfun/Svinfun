@@ -543,6 +543,14 @@ const SONGS = [
     fingers:[1,1,4,4,5,5,4,3,3,2,2,1,1,1, 4,4,3,3,2,2,1,4,4,3,3,2,2,1, 1,1,4,4,5,5,4,3,3,2,2,1,1,1],
     lh:"C3:5/4 F3:2/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/4 F3:2/2 C3:5/2 F3:2/2 C3:5/2 G3:1/2 C3:5/2",
     tip:"Vasen käsi pysyy paikallaan: pikkusormi C:llä, toinen sormi F:llä ja peukalo G:llä. Bassosävel vaihtuu kahden iskun välein." },
+  { id:"menuetti", title:"Menuetti G-duuri", level:"Klassikko · keskitaso", bpm:100, hands:2,
+    rh:"D5:5 G4:1/0.5 A4:2/0.5 H4:3/0.5 C5:4/0.5 D5:5 G4:1 G4:1 E5 C5/0.5 D5/0.5 E5/0.5 F#5/0.5 G5 G4 G4 C5 D5/0.5 C5/0.5 H4/0.5 A4/0.5 H4 C5/0.5 H4/0.5 A4/0.5 G4/0.5 F#4 G4/0.5 A4/0.5 H4/0.5 G4/0.5 A4/3",
+    lh:"G3/2 A3 H3/3 C4/3 H3/3 A3/3 G3/3 D3/3 D3/3",
+    tip:"Menuetti on kolmijakoinen tanssi: jokaisessa tahdissa on kolme iskua. Kappale on pitkään luettu Bachin nimiin, mutta sen sävelsi luultavasti Christian Petzold. Vasemman käden osuus on tässä helpotettu." },
+  { id:"yosoitto", title:"Pikku yösoitto", level:"Klassikko · keskitaso", bpm:96, hands:2,
+    rh:"G4 R/0.5 D4/0.5 G4 R/0.5 D4/0.5 G4/0.5 D4/0.5 G4/0.5 H4/0.5 D5/2 C5 R/0.5 A4/0.5 C5 R/0.5 A4/0.5 C5/0.5 A4/0.5 F#4/0.5 A4/0.5 D4/2",
+    lh:"G2/4 G2/4 D3/4 D3/4",
+    tip:"Mozartin Pikku yösoitto (Eine kleine Nachtmusik, 1787) alkaa nousevalla murtosoinnulla. Kahdeksasosatauot ovat lyhyitä hengähdyksiä ennen seuraavaa säveltä. Vasen käsi pitää bassosäveltä koko tahdin." },
   { id:"kaanon", title:"Jaakko kulta · kaanon", level:"Kaksi kättä · vaikea", bpm:92, hands:2,
     rh:"G4 A4 H4 G4 G4 A4 H4 G4 H4 C5 D5/2 H4 C5 D5/2 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 G4 D4 G4/2 G4 D4 G4/2",
     lh:"R/8 G2 A2 H2 G2 G2 A2 H2 G2 H2 C3 D3/2 H2 C3 D3/2 D3/0.5 E3/0.5 D3/0.5 C3/0.5 H2 G2 D3/0.5 E3/0.5 D3/0.5 C3/0.5 H2 G2 G2 D2 G2/2 G2 D2 G2/2",
@@ -552,8 +560,17 @@ const SONGS = [
     rh:"E5/0.25 D#5/0.25 E5/0.25 D#5/0.25 E5/0.25 H4/0.25 D5/0.25 C5/0.25 A4/0.5 R/0.25 C4/0.25 E4/0.25 A4/0.25 H4/0.5 R/0.25 E4/0.25 G#4/0.25 H4/0.25 C5/0.5 R/0.25 E4/0.25 E5/0.25 D#5/0.25 E5/0.25 D#5/0.25 E5/0.25 H4/0.25 D5/0.25 C5/0.25 A4/0.5 R/0.25 C4/0.25 E4/0.25 A4/0.25 H4/0.5 R/0.25 E4/0.25 C5/0.25 H4/0.25 A4/1.5",
     lh:"R/2 A2/0.25 E3/0.25 A3/0.25 R/0.75 E2/0.25 E3/0.25 G#3/0.25 R/0.75 A2/0.25 E3/0.25 A3/0.25 R/0.75 R/1.5 A2/0.25 E3/0.25 A3/0.25 R/0.75 E2/0.25 E3/0.25 G#3/0.25 R/0.75 A2/1.5",
     tip:"Beethovenin kappaleessa kädet vuorottelevat: vasen käsi soittaa murtosoinnun alaspäin, ja oikea käsi jatkaa siitä ylöspäin. Kuudestoistaosanuotit (kaksi väkää) soitetaan tasaisesti." },
+  { id:"pachelbel", title:"Kaanon D-duuri", level:"Klassikko · vaikea", bpm:76, hands:2,
+    rh:"R/8 F#5 E5 D5 C#5 H4 A4 H4 C#5 D5 C#5 H4 A4 G4 F#4 G4 E4 D4/0.5 F#4/0.5 A4/0.5 G4/0.5 F#4/0.5 D4/0.5 F#4/0.5 E4/0.5 D4/0.5 H3/0.5 D4/0.5 A4/0.5 G4/0.5 H4/0.5 A4/0.5 G4/0.5 F#4/4",
+    lh:"D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3 A2 H2 F#2 G2 D2 G2 A2 D3/4",
+    tip:"Johann Pachelbelin kaanonissa basso toistaa samaa kahdeksan sävelen kulkua koko kappaleen ajan. Vasen käsi aloittaa yksin, ja oikea käsi tulee mukaan kolmannessa tahdissa. Oikea käsi soittaa kolme eri muunnelmaa, viimeisen kahdeksasosina." },
+  { id:"preludi", title:"Preludi C-duuri", level:"Klassikko · vaikea", bpm:84, hands:2,
+    rh:"R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5 R A4/0.5 D5/0.5 F5/0.5 A4/0.5 D5/0.5 F5/0.5 R G4/0.5 D5/0.5 F5/0.5 G4/0.5 D5/0.5 F5/0.5 R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5 R A4/0.5 E5/0.5 A5/0.5 A4/0.5 E5/0.5 A5/0.5 R F#4/0.5 A4/0.5 D5/0.5 F#4/0.5 A4/0.5 D5/0.5 R G4/0.5 D5/0.5 G5/0.5 G4/0.5 D5/0.5 G5/0.5 R E4/0.5 G4/0.5 C5/0.5 E4/0.5 G4/0.5 C5/0.5 R G4/0.5 C5/0.5 E5/0.5 G4/0.5 C5/0.5 E5/0.5",
+    lh:"C4:5/4 C4:5/4 H3:5/4 C4:5/4 C4:5/4 C4:5/4 H3:5/4 H3:5/4 C4:5/4",
+    lh2:"R/0.5 E4:3/3.5 R/0.5 D4:4/3.5 R/0.5 D4:3/3.5 R/0.5 E4:3/3.5 R/0.5 E4:3/3.5 R/0.5 D4:4/3.5 R/0.5 D4:3/3.5 R/0.5 C4:4/3.5 R/0.5 E4:3/3.5",
+    tip:"Bachin C-duuripreludi (Das wohltemperierte Klavier I, 1722) rakentuu murtosoinnuista: vasen käsi soittaa kaksi alinta säveltä ja pitää ne pohjassa, ja oikea käsi jatkaa samasta soinnusta ylöspäin. Alkuperäisessä jokainen kuvio soitetaan kahdesti, tässä kerran." },
 ].map(s => {
-  const steps = buildSteps([{ hand: "R", seq: s.rh }, ...(s.lh ? [{ hand: "L", seq: s.lh }] : [])]);
+  const steps = buildSteps([{ hand: "R", seq: s.rh }, ...(s.lh ? [{ hand: "L", seq: s.lh }] : []), ...(s.lh2 ? [{ hand: "L", seq: s.lh2 }] : [])]);
   const lyr = s.lyrics ? s.lyrics.split(" ") : [];
   let ri = 0;
   for (const st of steps) for (const n of st.notes) if (n.hand === "R"){
