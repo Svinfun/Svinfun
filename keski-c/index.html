@@ -780,26 +780,40 @@ $("song-restart").onclick = () => { stopListen(); resetSong(); };
 // Right-hand chord shapes close to middle C (so the hand hardly moves) and the bass notes: root, then fifth.
 const CHORDS = {
   Am: { rh: ["C4:1","E4:2","A4:5"], bass: ["A2","E2"], name: "a-molli" },
+  C:  { rh: ["C4:1","E4:2","G4:4"], bass: ["C3","G2"], name: "C-duuri" },
   Dm: { rh: ["D4:1","F4:3","A4:5"], bass: ["D3","A2"], name: "d-molli" },
+  D:  { rh: ["D4:1","F#4:3","A4:5"], bass: ["D3","A2"], name: "D-duuri" },
   E:  { rh: ["H3:1","E4:2","G#4:4"], bass: ["E2","H2"], name: "E-duuri" },
+  F:  { rh: ["C4:1","F4:3","A4:5"], bass: ["F2","C3"], name: "F-duuri" },
 };
 // A progression loops for as long as you want. These are easy practice progressions in the mood of the song,
-// not the song's own chord chart.
+// not the song's own chord chart. pattern: one bar, B = bass (root, or the fifth when the chord repeats),
+// F = the fifth in the bass, C = the right-hand chord; each symbol lasts `beat` beats.
 const PROGRESSIONS = [
-  { id: "sakkijarvi", title: "Säkkijärven polkka", meter: "2/4", bpm: 132,
+  { id: "sakkijarvi", title: "Säkkijärven polkka", meter: "2/4", bpm: 132, pattern: "B C", beat: 1,
     bars: "Am Am E E E E Am Am Dm Dm Am Am E E Am Am",
     tip: "Polkassa vasen käsi soittaa bassosävelen tahdin ensimmäisellä iskulla ja oikea käsi soinnun toisella: um-pa, um-pa. Kun sama sointu jatkuu seuraavaan tahtiin, basso vaihtuu pohjasävelestä kvinttiin. Oikea käsi pysyy melkein paikallaan: a-mollista d-molliin liikkuvat vain kaksi alinta sormea, ja E-duuriin peukalo laskeutuu H:lle. Tämä on helppo polkkakierto kappaleen tunnelmaan, ei sen alkuperäinen sointukaava." },
+  { id: "bellaciao", title: "Bella ciao", meter: "4/4", bpm: 104, pattern: "B C F C", beat: 1,
+    bars: "Am Am Am Am Dm Dm Am Am E E Am Am",
+    tip: "Marssimainen kierto: jokaisessa tahdissa vasen käsi soittaa ensin pohjasävelen ja sitten kvintin, ja oikea käsi soittaa soinnun niiden välissä: basso, sointu, basso, sointu. Soinnut ovat a-molli, d-molli ja E-duuri, samat kuin Säkkijärven polkassa. Kierto seuraa laulun säkeitä: a-molli alussa, d-molli kohdassa ”una mattina” ja E-duuri ennen loppua." },
+  { id: "risingsun", title: "House of the Rising Sun", meter: "6/8", bpm: 120, pattern: "B C", beat: 1.5,
+    bars: "Am C D F Am C E E Am C D F Am E Am E",
+    tip: "Kuuden kahdeksasosan tahdissa on kaksi pitkää iskua: vasen käsi soittaa bassosävelen ensimmäisellä ja oikea käsi soinnun toisella. Soinnut vaihtuvat joka tahdissa. Oikea käsi pysyy keski-C:n ympärillä: C-duuriin ja F-duuriin peukalo jää C:lle, D-duurissa käytetään mustaa Fis-kosketinta, ja E-duurissa peukalo laskeutuu H:lle." },
 ].map(p => {
-  const bars = p.bars.split(" "), rh = [], lh = [];
+  const bars = p.bars.split(" "), pat = p.pattern.split(" "), rh = [], lh = [];
   let run = 0;
   bars.forEach((c, i) => {
     run = i > 0 && bars[i-1] === c ? run + 1 : 0;
     const d = CHORDS[c];
-    lh.push(`${d.bass[run % 2]}/1`, "R/1");            // beat 1: bass ("um")
-    rh.push("R/1", d.rh.join("+") + "/1");            // beat 2: chord ("pa")
+    for (const sym of pat){
+      if (sym === "C"){ rh.push(d.rh.join("+") + "/" + p.beat); lh.push("R/" + p.beat); }
+      // B alternates root and fifth from bar to bar only when the bar has no F of its own
+      else { lh.push((sym === "F" ? d.bass[1] : pat.includes("F") ? d.bass[0] : d.bass[run % 2]) + "/" + p.beat); rh.push("R/" + p.beat); }
+    }
   });
+  const barLen = pat.length * p.beat;
   const steps = buildSteps([{ hand: "R", seq: rh.join(" ") }, { hand: "L", seq: lh.join(" ") }]);
-  steps.forEach(st => { st.bar = Math.floor(st.t / 2); st.chord = bars[st.bar]; });
+  steps.forEach(st => { st.bar = Math.floor(st.t / barLen + 1e-9); st.chord = bars[st.bar]; });
   const all = steps.flatMap(st => st.notes.map(n => n.midi));
   return { ...p, bars, steps, lo: Math.min(...all), hi: Math.max(...all) };
 });
