@@ -1,0 +1,32 @@
+name: Keski-C tests
+
+# Runs the piano app's tests (song data, note detection and the microphone checks on simulated
+# piano sound) whenever the app changes. Run it by hand with "full" for every microphone condition.
+on:
+  push:
+    paths:
+      - "keski-c/**"
+      - ".github/workflows/keski-c-tests.yml"
+  pull_request:
+    paths:
+      - "keski-c/**"
+  workflow_dispatch:
+    inputs:
+      full:
+        description: "Kaikki olosuhteet (noin 20 min)"
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run tests
+        run: node keski-c/tests/run.js
+        env:
+          FULL: ${{ inputs.full && '1' || '' }}

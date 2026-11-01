@@ -3,6 +3,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Keski-C pianokoulu</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#101315">
+<meta name="apple-mobile-web-app-title" content="Keski-C">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -172,6 +178,29 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
   .chordnow .eyebrow{font-size:.62rem;letter-spacing:.04em}
   .chordnow b{font-size:1.8rem}
 }
+/* players */
+.player{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:8px;font-size:.85rem;color:var(--muted)}
+.player label{font-weight:700;color:var(--ink)}
+.player .sel{padding:4px 8px;font-size:.85rem}
+.player-new{display:flex;flex-wrap:wrap;gap:6px}
+#player-stats{font-variant-numeric:tabular-nums}
+/* practice bar */
+.practice{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;margin-top:12px}
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:8px;overflow:hidden}
+.seg button{font:inherit;font-size:.85rem;font-weight:700;border:0;background:var(--bg);color:var(--muted);padding:7px 12px;cursor:pointer}
+.seg button+button{border-left:1px solid var(--rule)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--surface)}
+#sect-btn[aria-pressed="true"]{border-color:var(--target);background:color-mix(in srgb, var(--target) 22%, transparent)}
+.tempo{display:inline-flex;align-items:center;gap:6px;font-size:.85rem;color:var(--muted);font-weight:700}
+.tempo input{width:110px;accent-color:var(--accent)}
+.tempo output{min-width:4ch;font-variant-numeric:tabular-nums;color:var(--ink)}
+.sect-info{font-size:.85rem;color:var(--accent);font-weight:700;min-height:1.3em;margin-top:4px}
+.acc-note{margin:4px 0 0;font-size:.82rem;color:var(--muted)}
+.chip{cursor:default}
+#song-chips .chip[data-i]{cursor:pointer}
+.chip.inrange{box-shadow:inset 0 -3px 0 var(--accent)}
+.chip.pickstart{outline:2px solid var(--target);outline-offset:1px}
+.chip .other{opacity:.35}
 .celebrate{margin-top:10px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb, var(--ok) 15%, transparent);color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -183,6 +212,16 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
     <div class="brand">
       <h1>Keski-<span>C</span></h1>
       <p>Opettele soittamaan pianoa, ensin yhdellä ja sitten kahdella kädellä.</p>
+      <div class="player">
+        <label for="player">Soittaja</label>
+        <select class="sel" id="player"></select>
+        <span id="player-stats"></span>
+        <form id="player-new" class="player-new" hidden>
+          <input id="player-name" class="sel" placeholder="Soittajan nimi" maxlength="24" aria-label="Uuden soittajan nimi" autocomplete="off">
+          <button class="btn primary">Lisää</button>
+          <button type="button" class="btn" id="player-cancel">Peru</button>
+        </form>
+      </div>
     </div>
     <nav class="tabs" role="tablist" aria-label="Harjoitukset">
       <button role="tab" id="tab-songs" aria-selected="true" data-view="songs">Kappaleet</button>
@@ -205,6 +244,17 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
         <button class="btn" id="song-restart">Aloita alusta</button>
       </div>
     </div>
+    <div class="practice">
+      <div class="seg" id="hand-pick" role="group" aria-label="Kumpi käsi soittaa">
+        <button data-hand="both" aria-pressed="true">Molemmat kädet</button><button data-hand="R" aria-pressed="false">Oikea</button><button data-hand="L" aria-pressed="false">Vasen</button>
+      </div>
+      <label class="chk" id="acc-wrap" hidden><input type="checkbox" id="opt-acc" checked><span>Sovellus soittaa toisen käden</span></label>
+      <button class="btn" id="sect-btn" aria-pressed="false">Valitse jakso</button>
+      <button class="btn" id="sect-clear" hidden>Koko kappale</button>
+      <label class="tempo" for="tempo">Tempo <input type="range" id="tempo" min="50" max="100" step="5" value="100"><output id="tempo-out">100 %</output></label>
+    </div>
+    <div class="sect-info" id="sect-info" aria-live="polite"></div>
+    <p class="acc-note" id="acc-note" hidden>Kun mikrofoni kuuntelee, sovellus ei soita toista kättä, jotta se ei kuulisi omaa ääntään.</p>
     <div class="staffbox"><svg class="staff" id="song-staff" viewBox="0 0 640 130" aria-label="Nuottiviivasto"></svg></div>
     <div class="row"><div class="progress"><i id="song-prog"></i></div><span class="status" id="song-status"></span></div>
     <div class="chips" id="song-chips"></div>
@@ -303,6 +353,8 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
     <div><h3>H eikä B</h3><p>Suomessa valkoinen kosketin C:stä seitsemäs on <b>H</b>. Sen vasemmalla puolella oleva musta kosketin on <b>B</b>. Muut mustat ovat Cis, Dis, Fis ja Gis.</p></div>
     <div><h3>Oikea piano</h3><p>Paina <b>Kuuntele pianoa</b> ja salli mikrofoni. Aseta puhelin tai tietokone pianon lähelle ja soita yksi sävel kerrallaan. Jos sovellus kuulee ääniä, joita et soittanut, pienennä herkkyyttä.</p></div>
     <div><h3>Kaksi kättä</h3><p>Keltainen kosketin on oikealle kädelle ja violetti vasemmalle. Kun soitat kaksi säveltä yhtä aikaa, soita ne samalla hetkellä. Mikrofonin kautta sovellus tarkistaa, kuuluvatko odotetut sävelet. Samaa säveltä kahdessa oktaavissa (esimerkiksi C3 ja C4 yhtä aikaa) se ei pysty erottamaan toisistaan.</p></div>
+    <div><h3>Sovellukseksi</h3><p>iPhonessa ja iPadissa: avaa sivu Safarissa, paina Jaa-painiketta ja valitse <b>Lisää Koti-valikkoon</b>. Androidissa Chromen valikosta <b>Asenna sovellus</b>. Kun sivu on kerran avattu, se toimii myös ilman verkkoyhteyttä.</p></div>
+    <div><h3>Kädet erikseen</h3><p>Kahden käden kappaleissa voit harjoitella oikeaa tai vasenta kättä erikseen, jolloin sovellus soittaa toisen käden. <b>Valitse jakso</b> toistaa vaikeaa kohtaa niin kauan kuin haluat, ja tempoa voi hidastaa.</p></div>
     <div><h3>Keski-C</h3><p>Keski-C on pianon keskellä, kahden mustan koskettimen ryhmän vasemmalla puolella. Viivastolla se istuu oman apuviivansa päällä viivaston alapuolella.</p></div>
     <div><h3>Näppäimistö</h3><p><kbd>A</kbd> on keski-C, sitten <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>Ö</kbd> <kbd>Ä</kbd>. Mustat koskettimet ovat ylärivillä: <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd>. Vasemman käden oktaavi C3–H3 on alarivillä: <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd>.</p></div>
     <div><h3>Sormitus</h3><p>Peukalo on 1 ja pikkusormi 5. C-asemassa oikean käden sormet lepäävät koskettimilla C, D, E, F ja G.</p></div>
@@ -659,19 +711,83 @@ const SONGS = [
   return { ...s, hands: s.hands || 1, steps, count: all.length, lo: Math.min(...all), hi: Math.max(...all) };
 });
 
-const songState = { song: SONGS[1], pos: 0, errors: 0, hits: new Set(), playing: null };
-const best = store.get("best", {});
+// hand: which hand(s) you play ("both", "R", "L"); range: a looped section [first step, last step] or null
+/* ---------- players: each has their own progress ---------- */
+const players = store.get("players", null) || [{ id: "p1", name: "Soittaja 1" }];
+let player = players.find(p => p.id === store.get("player", "p1")) || players[0];
+// the first player inherits progress saved before players existed
+if (!store.get("players", null)){ store.set("players", players); for (const k of ["best","qbest"]){ const v = store.get(k, null); if (v != null) store.set("p:p1:"+k, v); } }
+const pstore = { get: (k, d) => store.get(`p:${player.id}:${k}`, d), set: (k, v) => store.set(`p:${player.id}:${k}`, v) };
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`; };
+function markPractice(){ const days = pstore.get("days", []); if (!days.includes(today())){ days.push(today()); pstore.set("days", days); renderPlayer(); } }
+const stars = errs => errs == null ? 0 : errs === 0 ? 3 : errs <= 3 ? 2 : 1;
+const starStr = n => "★".repeat(n) + "☆".repeat(3 - n);
+const starText = errs => ({ 3: "Kolme tähteä: ei yhtään virhettä!", 2: "Kaksi tähteä: enintään kolme virhettä.", 1: "Yksi tähti: kappale soitettu loppuun." })[stars(errs)];
+function renderPlayer(){
+  $("player").innerHTML = players.map(p => `<option value="${p.id}"${p === player ? " selected" : ""}>${p.name.replace(/[<&]/g, "")}</option>`).join("") + `<option value="__new">+ Uusi soittaja…</option>`;
+  const days = pstore.get("days", []).length, b = pstore.get("best", {}), total = Object.values(b).reduce((a, e) => a + stars(e), 0);
+  $("player-stats").textContent = `${total} ★ · harjoiteltu ${days} ${days === 1 ? "päivänä" : "päivänä"}`;
+}
+function switchPlayer(p){
+  player = p; store.set("player", p.id);
+  for (const k of Object.keys(best)) delete best[k]; Object.assign(best, pstore.get("best", {}));
+  quiz.best = pstore.get("qbest", 0); renderQuizStats?.();
+  renderPlayer(); renderSongList();
+}
+$("player").onchange = () => {
+  const v = $("player").value;
+  if (v === "__new"){ $("player-new").hidden = false; $("player-name").focus(); renderPlayer(); return; }
+  switchPlayer(players.find(p => p.id === v));
+};
+$("player-new").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("player-name").value.trim().slice(0, 24); if (!name) return;
+  const p = { id: "p" + Date.now().toString(36), name }; players.push(p); store.set("players", players);
+  $("player-name").value = ""; $("player-new").hidden = true; switchPlayer(p);
+});
+$("player-cancel").onclick = () => { $("player-new").hidden = true; renderPlayer(); };
+
+const songState = { song: SONGS[1], pos: 0, errors: 0, hits: new Set(), playing: null,
+  hand: "both", range: null, picking: null, reps: 0, tempo: store.get("tempo", 1), accTimers: [] };
+const best = pstore.get("best", {});
 
 function renderSongList(){
   $("songlist").innerHTML = SONGS.map(s => `<button class="song" data-id="${s.id}" aria-pressed="${s===songState.song}">
-    <b>${s.title}</b><small>${s.level}${best[s.id]!=null ? ` · <span class="done">✓ ${best[s.id]===0 ? "virheetön" : best[s.id]+" virhettä"}</span>` : ""}</small></button>`).join("");
+    <b>${s.title}</b><small>${s.level}${best[s.id]!=null ? ` · <span class="done" title="${best[s.id]} virhettä parhaimmillaan">${starStr(stars(best[s.id]))}</span>` : ""}</small></button>`).join("");
 }
 $("songlist").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return;
-  stopListen(); songState.song = SONGS.find(s => s.id === b.dataset.id); store.set("song", songState.song.id); resetSong(); });
+  stopListen(); songState.song = SONGS.find(s => s.id === b.dataset.id); store.set("song", songState.song.id);
+  songState.range = null; songState.picking = null; if (songState.song.hands === 1) songState.hand = "both"; resetSong(); });
 
+// the notes you have to play in a step (the other hand's notes are played by the app, or skipped)
+function req(st){ return !st ? [] : songState.hand === "both" || songState.song.hands === 1 ? st.notes : st.notes.filter(n => n.hand === songState.hand); }
+const accompany = () => songState.hand !== "both" && songState.song.hands === 2 && $("opt-acc").checked && !mic.on;
+const beatMs = () => 60 / (songState.song.bpm * songState.tempo) * 1000;
+function playNotes(notes, delay, vel = 0.6){
+  const b = beatMs();
+  for (const n of notes){
+    songState.accTimers.push(setTimeout(() => { noteOn(n.midi, vel); keyEls[n.midi]?.classList.add("down"); }, delay));
+    songState.accTimers.push(setTimeout(() => { noteOff(n.midi); keyEls[n.midi]?.classList.remove("down"); }, delay + n.dur*b*0.9));
+  }
+}
+function stopAccompaniment(){ songState.accTimers.forEach(clearTimeout); songState.accTimers = []; }
+// Skip the steps that have nothing for your hand; the app plays them in tempo when accompanying.
+function settle(playFrom){
+  const { song } = songState, end = songState.range ? songState.range[1] : song.steps.length - 1;
+  let delay = playFrom != null ? song.steps[playFrom].len * beatMs() : 0;
+  while (songState.pos <= end && songState.pos < song.steps.length && !req(song.steps[songState.pos]).length){
+    if (playFrom != null && accompany()) playNotes(song.steps[songState.pos].notes, delay);
+    delay += song.steps[songState.pos].len * beatMs();
+    songState.pos++;
+  }
+  if (songState.range && songState.pos > end){ songState.pos = songState.range[0]; songState.reps++; settle(); }
+}
 function songKeyboard(){ const s = songState.song; if (s.hands === 1) buildKeyboard(60, 84); else buildKeyboard(...rangeFor(s.lo, s.hi)); }
 function resetSong(){
-  songState.pos = 0; songState.errors = 0; songState.hits.clear(); mic.chord?.reset();
+  stopAccompaniment();
+  songState.pos = songState.range ? songState.range[0] : 0; songState.errors = 0; songState.reps = 0; songState.hits.clear(); mic.chord?.reset();
+  settle();
+  renderPracticeBar();
   $("song-done").hidden = true; setStatus("", "");
   if (currentView === "songs") songKeyboard();
   renderSong(); renderSongList();
@@ -692,13 +808,15 @@ function renderSong(){
   $("hand-legend").hidden = song.hands !== 2;
   $("song-prog").style.width = (pos/N*100)+"%";
   drawSongStaff(pos, false);
+  const [ra, rb] = songState.range || [-1, -1], other = h => songState.hand !== "both" && song.hands === 2 && h !== songState.hand ? " other" : "";
   $("song-chips").innerHTML = song.steps.map((st,i) => {
     const r = st.notes.filter(n => n.hand === "R"), l = st.notes.filter(n => n.hand === "L");
+    const inRange = i >= ra && i <= rb ? " inrange" : "", pick = songState.picking != null && i === songState.picking ? " pickstart" : "";
     const names = ns => ns.map(n => nameOf(n.midi)).join(" "), fing = ns => ns.map(n => n.finger || "").join(" ").trim();
     const lyric = r.find(n => n.lyric)?.lyric || "";
-    return `<div class="chip ${i<pos?"past":i===pos?"now":""}">` +
-      (r.length ? `<span class="n">${names(r)}</span>${fing(r) ? `<span class="f">${fing(r)}</span>` : ""}` : "") +
-      (l.length ? `<span class="n lh">${names(l)}</span>${fing(l) ? `<span class="f lh">${fing(l)}</span>` : ""}` : "") +
+    return `<div class="chip ${i<pos?"past":i===pos?"now":""}${inRange}${pick}" data-i="${i}">` +
+      (r.length ? `<span class="n${other("R")}">${names(r)}</span>${fing(r) ? `<span class="f${other("R")}">${fing(r)}</span>` : ""}` : "") +
+      (l.length ? `<span class="n lh${other("L")}">${names(l)}</span>${fing(l) ? `<span class="f lh${other("L")}">${fing(l)}</span>` : ""}` : "") +
       (lyric ? `<span class="l">${lyric}</span>` : "") + `</div>`;
   }).join("");
   if (currentView === "songs") showStepTargets();
@@ -708,33 +826,40 @@ function showTargets(st, hits){
   for (const n of st.notes) if (!hits.has(n.midi)) keyEls[n.midi]?.classList.add(n.hand === "L" ? "target-lh" : "target");
   reveal(st.notes.map(n => n.midi));
 }
-function showStepTargets(){ showTargets(songState.song.steps[songState.pos], songState.hits); }
+function showStepTargets(){ const st = songState.song.steps[songState.pos]; showTargets(st && { notes: req(st) }, songState.hits); }
 function advance(){
-  const { song } = songState;
+  const { song } = songState, done = songState.pos, before = songState.reps;
+  markPractice();
+  // the other hand's notes of this step sound together with yours
+  if (accompany()) playNotes(song.steps[done].notes.filter(n => !req(song.steps[done]).includes(n)), 0);
   songState.pos++; songState.hits.clear();
-  setStatus(["Hyvä!","Oikein!","Juuri noin.","Hienoa!"][songState.pos % 4], "ok");
-  if (songState.pos >= song.steps.length){
-    const prev = best[song.id]; if (prev == null || songState.errors < prev){ best[song.id] = songState.errors; store.set("best", best); }
+  if (songState.range && songState.pos > songState.range[1]){ songState.pos = songState.range[0]; songState.reps++; }
+  settle(done);
+  setStatus(songState.reps > before ? `Jakso soitettu ${songState.reps} ${songState.reps === 1 ? "kerran" : "kertaa"}. Jatka alusta!` : ["Hyvä!","Oikein!","Juuri noin.","Hienoa!"][songState.pos % 4], "ok");
+  if (!songState.range && songState.pos >= song.steps.length){
+    if (songState.hand === "both"){ const prev = best[song.id]; if (prev == null || songState.errors < prev){ best[song.id] = songState.errors; pstore.set("best", best); } }
     setStatus("Valmis!", "ok");
     const d = $("song-done"); d.hidden = false;
-    d.innerHTML = `<b>Soitit kappaleen ${song.title} loppuun${songState.errors ? `, ${songState.errors} virhettä` : " ilman virheitä"}.</b> ${song.tip}`;
-    renderSongList();
+    const handTxt = songState.hand === "R" ? " oikealla kädellä" : songState.hand === "L" ? " vasemmalla kädellä" : "";
+    d.innerHTML = `<b>Soitit kappaleen ${song.title} loppuun${handTxt}${songState.errors ? `, ${songState.errors} virhettä` : " ilman virheitä"}.</b> ${songState.hand === "both" ? starText(songState.errors) + " " : "Kokeile seuraavaksi molemmilla käsillä. "}${song.tip}`;
+    renderSongList(); renderPlayer();
   }
+  if (songState.reps > before) renderPracticeBar();
   renderSong();
 }
 function songNote(m, fromMic){
   const { song } = songState; if (songState.playing || songState.pos >= song.steps.length) return;
   if (fromMic && song.hands === 2) return; // two-hand songs are checked from the sound spectrum (songHeard)
-  const st = song.steps[songState.pos], want = st.notes.map(n => n.midi);
+  const st = song.steps[songState.pos], mine = req(st), want = mine.map(n => n.midi);
   // From the real piano the right note name in any octave counts, so an octave slip does not stall the song.
   const match = want.find(w => w === m) ?? (fromMic && want.length === 1 && (m - want[0]) % 12 === 0 ? want[0] : undefined);
   if (match !== undefined){
     flash(m, "ok", 220); songState.hits.add(match);
     if (want.every(w => songState.hits.has(w))) advance();
-    else { const left = st.notes.filter(n => !songState.hits.has(n.midi)); setStatus(`Hyvä. Soita vielä ${stepNames(left)}.`, "ok"); showStepTargets(); }
+    else { const left = mine.filter(n => !songState.hits.has(n.midi)); setStatus(`Hyvä. Soita vielä ${stepNames(left)}.`, "ok"); showStepTargets(); }
   } else {
     songState.errors++; flash(m, "bad");
-    setStatus(`Tuo oli ${nameOf(m)}${octOf(m)}. Soita ${stepNames(st.notes)}.`, "bad");
+    setStatus(`Tuo oli ${nameOf(m)}${octOf(m)}. Soita ${stepNames(mine)}.`, "bad");
   }
 }
 // Result of the microphone check for a two-hand step (see chordCheck).
@@ -742,20 +867,21 @@ function songHeard(res){
   const { song } = songState; if (songState.playing || songState.pos >= song.steps.length) return;
   if (!res.ok && res.unsure) return; // can't tell yet: wait for a clearer strike
   const st = song.steps[songState.pos];
-  if (res.ok){ for (const n of st.notes) flash(n.midi, "ok", 260); advance(); }
+  if (res.ok){ for (const n of req(st)) flash(n.midi, "ok", 260); advance(); }
   else {
     songState.errors++;
-    const miss = st.notes.filter(n => res.missing.includes(n.midi));
+    const miss = req(st).filter(n => res.missing.includes(n.midi));
     setStatus(`Kuulin äänen, mutta en löytänyt säveltä ${stepNames(miss)}. Yritä uudelleen.`, "bad");
   }
 }
 function listen(){
   if (songState.playing){ stopListen(); return; }
-  audio(); const { song } = songState, beat = 60/song.bpm*1000;
+  stopAccompaniment(); audio(); const { song } = songState, beat = beatMs();
   $("song-listen").textContent = "■ Pysäytä"; clearTargets();
-  let i = 0; const timers = []; songState.playing = timers;
+  const last = songState.range ? songState.range[1] : song.steps.length - 1;
+  let i = songState.range ? songState.range[0] : 0; const timers = []; songState.playing = timers;
   const step = () => {
-    if (i >= song.steps.length || songState.playing !== timers){ stopListen(); return; }
+    if (i > last || songState.playing !== timers){ stopListen(); return; }
     const st = song.steps[i];
     for (const n of st.notes){
       noteOn(n.midi, 0.75); keyEls[n.midi]?.classList.add("down");
@@ -767,12 +893,46 @@ function listen(){
   step();
 }
 function stopListen(){
+  stopAccompaniment();
   if (songState.playing) songState.playing.forEach(clearTimeout);
   songState.playing = null; $("song-listen").textContent = "▶ Kuuntele";
   for (const m in keyEls){ keyEls[m].classList.remove("down"); noteOff(+m); }
   renderSong();
 }
 $("song-listen").onclick = listen;
+
+/* practice bar: hands, section, tempo */
+function renderPracticeBar(){
+  const { song } = songState, two = song.hands === 2;
+  $("hand-pick").hidden = !two; $("acc-wrap").hidden = !two || songState.hand === "both";
+  document.querySelectorAll("#hand-pick button").forEach(b => b.setAttribute("aria-pressed", b.dataset.hand === songState.hand));
+  $("acc-note").hidden = !(two && songState.hand !== "both" && mic.on);
+  const r = songState.range;
+  $("sect-btn").textContent = songState.picking != null ? "Napauta jakson viimeistä nuottia" : r ? "Valitse uusi jakso" : "Valitse jakso";
+  $("sect-btn").setAttribute("aria-pressed", songState.picking != null);
+  $("sect-clear").hidden = !r;
+  $("sect-info").textContent = songState.picking != null ? "" : r ? `Jakso: nuotit ${r[0]+1}–${r[1]+1} · soitettu ${songState.reps} ${songState.reps === 1 ? "kerran" : "kertaa"}` : "";
+  $("tempo").value = Math.round(songState.tempo*100); $("tempo-out").textContent = Math.round(songState.tempo*100) + " %";
+}
+$("hand-pick").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return;
+  stopListen(); songState.hand = b.dataset.hand; resetSong(); });
+$("opt-acc").onchange = () => { store.set("acc", $("opt-acc").checked); stopAccompaniment(); };
+$("opt-acc").checked = store.get("acc", true);
+$("sect-btn").onclick = () => {
+  songState.picking = songState.picking != null ? null : -1;
+  setStatus(songState.picking != null ? "Napauta nuottilistasta jakson ensimmäistä nuottia." : "", "");
+  renderPracticeBar(); renderSong();
+};
+$("sect-clear").onclick = () => { songState.range = null; songState.picking = null; stopListen(); resetSong(); };
+$("song-chips").addEventListener("click", e => {
+  const c = e.target.closest(".chip"); if (!c || songState.picking == null) return;
+  const i = +c.dataset.i;
+  if (songState.picking < 0){ songState.picking = i; setStatus("Napauta nyt jakson viimeistä nuottia.", ""); renderSong(); return; }
+  const a = Math.min(songState.picking, i), b = Math.max(songState.picking, i);
+  songState.range = [a, b]; songState.picking = null; stopListen(); resetSong();
+  setStatus(`Jakso valittu. Se toistuu, kunnes poistat sen.`, "ok");
+});
+$("tempo").oninput = () => { songState.tempo = $("tempo").value/100; store.set("tempo", songState.tempo); renderPracticeBar(); };
 $("song-restart").onclick = () => { stopListen(); resetSong(); };
 
 /* ---------- chord progressions (Sointukierto) ---------- */
@@ -853,7 +1013,7 @@ function renderProg(at){
   if (currentView === "chords" && at == null) showTargets(st, prog.hits);
 }
 function progAdvance(){
-  const { p } = prog;
+  const { p } = prog; markPractice();
   prog.pos++; prog.hits.clear();
   if (prog.pos >= p.steps.length){
     prog.pos = 0; prog.rounds++;
@@ -909,7 +1069,7 @@ $("prog-listen").onclick = progListen;
 $("prog-restart").onclick = () => { stopProgListen(); resetProg(); };
 
 /* ---------- quiz ---------- */
-const quiz = { target: 64, score: 0, streak: 0, best: store.get("qbest", 0), misses: 0, locked: false };
+const quiz = { target: 64, score: 0, streak: 0, best: pstore.get("qbest", 0), misses: 0, locked: false };
 const QRANGE = { treble: [60, 84], bass: [43, 60], both: [43, 84] };
 function quizMode(){ return document.querySelector('input[name="qmode"]:checked').value; }
 function quizClef(){ return $("q-clef").value; }
@@ -936,7 +1096,8 @@ function quizNote(m){
   const st = $("quiz-status");
   if (right){
     quiz.locked = true; quiz.score++; quiz.streak++;
-    if (quiz.streak > quiz.best){ quiz.best = quiz.streak; store.set("qbest", quiz.best); }
+    if (quiz.streak > quiz.best){ quiz.best = quiz.streak; pstore.set("qbest", quiz.best); }
+    markPractice();
     flash(m, "ok", 450); st.textContent = `Oikein, se on ${nameOf(quiz.target)}${byName ? "" : octOf(quiz.target)}.`; st.className = "status ok";
     renderQuiz("ok"); setTimeout(newTarget, 650);
   } else {
@@ -1147,12 +1308,12 @@ async function startMic(){
   mic.an = c.createAnalyser(); mic.an.fftSize = 2048; mic.src.connect(mic.an);
   mic.an2 = c.createAnalyser(); mic.an2.fftSize = 4096; mic.an2.smoothingTimeConstant = 0; mic.src.connect(mic.an2);
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
-    () => { const a = activePractice(), st = a && a.steps[a.pos]; return st ? st.notes.map(n => n.midi) : null; },
+    () => activePractice()?.want ?? null,
     res => activePractice()?.heard(res), () => currentView === "chords" ? FLUX_CHORDS : FLUX_SONG);
   mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
-  $("mic-live").hidden = false; $("mic-heard").textContent = "Soita jokin sävel";
+  $("mic-live").hidden = false; $("mic-heard").textContent = "Soita jokin sävel"; stopAccompaniment(); renderPracticeBar();
   micLoop();
 }
 function stopMic(){
@@ -1161,13 +1322,13 @@ function stopMic(){
   try{ mic.src?.disconnect(); }catch(e){}
   if (mic.held != null){ keyEls[mic.held]?.classList.remove("down"); mic.held = null; }
   mic.on = false; mic.chord = null; micBtn.setAttribute("aria-pressed", "false"); $("mic-label").textContent = "Kuuntele pianoa";
-  $("mic-live").hidden = true;
+  $("mic-live").hidden = true; renderPracticeBar();
 }
 // Exercises whose steps are checked from the sound spectrum: two-hand songs and chord progressions.
 function activePractice(){
   if (currentView === "songs" && songState.song.hands === 2 && songState.pos < songState.song.steps.length)
-    return { steps: songState.song.steps, pos: songState.pos, heard: songHeard };
-  if (currentView === "chords") return { steps: prog.p.steps, pos: prog.pos, heard: progHeard };
+    return { want: req(songState.song.steps[songState.pos]).map(n => n.midi), heard: songHeard };
+  if (currentView === "chords") return { want: prog.p.steps[prog.pos].notes.map(n => n.midi), heard: progHeard };
   return null;
 }
 function micLoop(){
@@ -1226,8 +1387,10 @@ document.querySelector(".tabs").addEventListener("click", e => { const b = e.tar
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (VIEWS.includes(h)) show(h); });
 
 songState.song = SONGS.find(s => s.id === store.get("song", "ukko")) || SONGS[1];
-renderSongList(); renderProgList(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
+renderPlayer(); renderPracticeBar(); renderSongList(); renderProgList(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
 const h0 = location.hash.slice(1); show(VIEWS.includes(h0) ? h0 : "songs");
+// offline use and "Add to Home Screen" (only on the published site; other hosts, such as the Claude page, don't allow it)
+if ("serviceWorker" in navigator && location.hostname.endsWith("github.io")) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
 </script>
 
