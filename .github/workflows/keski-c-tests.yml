@@ -13,17 +13,17 @@ on:
   workflow_dispatch:
     inputs:
       full:
-        description: "Kaikki olosuhteet (noin 20 min)"
+        description: "Kaikki olosuhteet (noin 40 min)"
         type: boolean
         default: false
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: Run tests

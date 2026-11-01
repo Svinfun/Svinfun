@@ -1,5 +1,5 @@
-// Keski-C tests: node keski-c/tests/run.js        (fast, run by GitHub on every change)
-//                FULL=1 node keski-c/tests/run.js (every microphone condition, takes ~20 min)
+// Keski-C tests: node keski-c/tests/run.js        (fast, about 8 min; GitHub runs it on every change)
+//                FULL=1 node keski-c/tests/run.js (every microphone condition, about 40 min)
 "use strict";
 const { lib, songs, stepsOf, nm, listen, detectNotes } = require("./lib.js");
 const FULL = !!process.env.FULL;
@@ -46,8 +46,8 @@ if (FULL){
 
 /* 3. Two-hand songs through the microphone check */
 console.log("\n— Kahden käden kappaleet mikrofonilla");
-const conditions = [{ label: "perus", bpm: 72 }, { label: "puhelin", bpm: 72, agc: true, thump: true }];
-if (FULL) conditions.push({ label: "nopeampi", bpm: 100 }, { label: "44.1 kHz", bpm: 72, sr: 44100 });
+const conditions = [{ label: "perus", bpm: 72 }];
+if (FULL) conditions.push({ label: "puhelin", bpm: 72, agc: true, thump: true }, { label: "nopeampi", bpm: 100 }, { label: "44.1 kHz", bpm: 72, sr: 44100 });
 const twoHand = Object.values(songs).filter(s => s.hands === 2).map(s => s.id);
 for (const id of twoHand){
   const steps = stepsOf(id);

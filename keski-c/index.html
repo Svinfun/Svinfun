@@ -670,7 +670,7 @@ const SONGS = [
     lh:"E3/2 G#3/2 A2/2 E3/2 E3/2 G#3/2 A2/2 E3/2 D3/2 A3/2 C3/2 G3/2 E3/2 G#3/2 A2/2 E3/2",
     tip:"Venäläinen kansanlaulu Korobeiniki (Kulkukauppiaat) perustuu Nikolai Nekrasovin runoon vuodelta 1861. Melodia tuli maailmankuuluksi Tetris-pelistä. Tässä soitetaan kansanlaulun sävelmää, ja vasen käsi soittaa soinnun pohjasävelen ja sen yläpuolisen sävelen." },
   { id:"kaanon", title:"Jaakko kulta · kaanon", level:"Kaksi kättä · vaikea", bpm:92, hands:2,
-    rh:"G4 A4 H4 G4 G4 A4 H4 G4 H4 C5 D5/2 H4 C5 D5/2 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 G4 D4 G4/2 G4 D4 G4/2",
+    rh:"G4 A4 H4 G4 G4 A4 H4 G4 H4 C5 D5/2 H4 C5 D5/2 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 D5/0.5 E5/0.5 D5/0.5 C5/0.5 H4 G4 G4 D4 G4/2 G4 D4 G4/2 R/8",
     lh:"R/8 G2 A2 H2 G2 G2 A2 H2 G2 H2 C3 D3/2 H2 C3 D3/2 D3/0.5 E3/0.5 D3/0.5 C3/0.5 H2 G2 D3/0.5 E3/0.5 D3/0.5 C3/0.5 H2 G2 G2 D2 G2/2 G2 D2 G2/2",
     lyrics:"Jaak ko kul ta, Jaak ko kul ta, he rää jo, he rää jo, kel lo ja si soi ta, kel lo ja si soi ta, pim pom pom, pim pom pom.",
     tip:"Kaanonissa vasen käsi aloittaa saman melodian kaksi oktaavia alempaa, kun oikea käsi on soittanut kaksi tahtia. Kädet soittavat eri kohtaa samasta laulusta." },
@@ -865,7 +865,7 @@ function songNote(m, fromMic){
 // Result of the microphone check for a two-hand step (see chordCheck).
 function songHeard(res){
   const { song } = songState; if (songState.playing || songState.pos >= song.steps.length) return;
-  if (!res.ok && res.unsure) return; // can't tell yet: wait for a clearer strike
+  if (!res.ok && (res.unsure || res.maybe)) return; // can't tell yet: wait for a clearer strike
   const st = song.steps[songState.pos];
   if (res.ok){ for (const n of req(st)) flash(n.midi, "ok", 260); advance(); }
   else {
@@ -1208,7 +1208,7 @@ function chordCheck(base, now, binHz, midis){
   let peak = -200; for (let i=3; i<=lim; i++) if (v(now[i]) > peak) peak = v(now[i]);
   const partial = (f, h) => Math.round(h*f*Math.sqrt(1 + 0.0002*h*h)/binHz);
   const freq = m => 440*Math.pow(2,(m-69)/12);
-  const missing = [], ringing = [];
+  const missing = [], ringing = [], maybe = [];
   for (const m of midis){
     // the upper note of an octave pair (C3 + C4) has no partials of its own, so only the lower one is checked
     if (midis.some(o => o < m && (m - o) % 12 === 0)) continue;
@@ -1236,11 +1236,14 @@ function chordCheck(base, now, binHz, midis){
     // the top note of a step whose partials mostly coincide with lower notes (B5 over E4): one clear partial of its own is enough
     const need = shared >= tried && tried <= 2 && midis.every(o => o <= m) ? Math.min(1, tried) : Math.min(2, tried);
     // unsure only when the note has fewer than two partials that weren't already ringing loudly before the strike
-    // a low note must also show an odd partial: its even partials are what the same note an octave or two up produces (E4 over E2)
-    const octaveOnly = f < 300 && oddTried > 0 && oddHits === 0;
-    if (hits < need || octaveOnly){ missing.push(m); if (tried - loudBefore < 2) ringing.push(m); }
+    // a bass note (below ~150 Hz) must also show an odd partial: its even partials are what the same note an octave or two up produces (E4 over E2)
+    const octaveOnly = f < 150 && oddTried > 0 && oddHits === 0;
+    // ringing: hardly any partials of its own that weren't already sounding (strict, for chord progressions)
+    // maybe: most of its partials were already sounding (lenient, for songs, which then just wait)
+    if (hits < need || octaveOnly){ missing.push(m); if (tried - loudBefore < 2) ringing.push(m); if (loudBefore >= need) maybe.push(m); }
   }
-  return { ok: missing.length === 0, missing, unsure: missing.length > 0 && ringing.length === missing.length };
+  return { ok: missing.length === 0, missing, unsure: missing.length > 0 && ringing.length === missing.length,
+    maybe: missing.length > 0 && maybe.length === missing.length };
 }
 
 // Queues one check per key strike. Each check compares the spectrum ~0.1 s after the strike with one from
