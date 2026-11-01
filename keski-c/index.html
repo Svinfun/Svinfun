@@ -892,8 +892,8 @@ function chordCheck(base, now, binHz, midis){
     }
     // too few partials of its own (e.g. B5 over E4, whose 3rd partial is B5): can't be judged, like an octave
     if (tried < 2 && shared >= 2) continue;
-    // mostly shared partials: one clear partial of its own is enough
-    const need = shared >= tried ? Math.min(1, tried) : Math.min(2, tried);
+    // the top note of a step whose partials mostly coincide with lower notes (B5 over E4): one clear partial of its own is enough
+    const need = shared >= tried && tried <= 2 && midis.every(o => o <= m) ? Math.min(1, tried) : Math.min(2, tried);
     if (hits < need){ missing.push(m); if (loudBefore >= need) ringing.push(m); }
   }
   return { ok: missing.length === 0, missing, unsure: missing.length > 0 && ringing.length === missing.length };
