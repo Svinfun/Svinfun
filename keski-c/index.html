@@ -1087,7 +1087,10 @@ function chordCheck(base, now, binHz, midis){
 // unevenly (one hand slightly later) is judged by the later strike.
 // Strikes come from the level detector or from spectral flux: new partials appearing in the spectrum.
 // Flux also catches fast notes next to each other (E-D#-E in Für Elise), where the volume hardly changes.
-function createChordListener(binHz, expect, onResult){
+// flux(): the strike threshold for the current exercise. Songs use a higher one, because fast melodies make
+// spurious strikes; chord progressions a lower one, so a soft bass note under a ringing chord is noticed.
+const FLUX_SONG = { min: 2, k: 1.8 }, FLUX_CHORDS = { min: 1, k: 2.5 };
+function createChordListener(binHz, expect, onResult, fluxSetting = () => FLUX_SONG){
   const lim = Math.floor(5000/binHz), fluxHist = [];
   let ring = [], queue = [], lastOnset = -1, prevFlux = 0;
   return {
@@ -1099,8 +1102,8 @@ function createChordListener(binHz, expect, onResult){
       let flux = 0;
       if (prev){ const fl = peak - 50; for (let i=3; i<=lim; i++) if (spec[i] > fl){ const d = spec[i] - Math.max(prev[i], fl); if (d > 0) flux += d; } flux /= lim; }
       const mean = fluxHist.length ? fluxHist.reduce((a,b) => a+b, 0)/fluxHist.length : 0;
-      // threshold 1: a soft bass note under a ringing chord gives ~1.5, steady sound ~0.05 (silence is excluded by audible)
-      const fluxOnset = audible && flux > Math.max(1, 2.5*mean) && flux > prevFlux;
+      const th = fluxSetting();
+      const fluxOnset = audible && flux > Math.max(th.min, th.k*mean) && flux > prevFlux;
       fluxHist.push(flux); if (fluxHist.length > 30) fluxHist.shift(); prevFlux = flux;
       ring.push(spec); if (ring.length > 4) ring.shift();
       if ((levelOnset || fluxOnset) && t - lastOnset > 0.09 && ring.length === 4){ queue.push({ t, due: t + 0.1, base: ring[0] }); lastOnset = t; }
@@ -1145,7 +1148,7 @@ async function startMic(){
   mic.an2 = c.createAnalyser(); mic.an2.fftSize = 4096; mic.an2.smoothingTimeConstant = 0; mic.src.connect(mic.an2);
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
     () => { const a = activePractice(), st = a && a.steps[a.pos]; return st ? st.notes.map(n => n.midi) : null; },
-    res => activePractice()?.heard(res));
+    res => activePractice()?.heard(res), () => currentView === "chords" ? FLUX_CHORDS : FLUX_SONG);
   mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
