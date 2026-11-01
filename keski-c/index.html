@@ -152,6 +152,26 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 .sens input{width:84px;accent-color:#7FD3A4}
 .micmsg{margin:0 0 8px;color:#F0B43A;font-size:.85rem}
 .micmsg a{color:#F0B43A}
+/* chord progression view */
+.chordnow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
+.chordnow>div{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--rule);border-radius:10px;background:var(--bg)}
+.chordnow b{font-family:var(--f-display);font-weight:400;font-size:2.4rem;line-height:1.05;color:var(--accent);font-variant-numeric:tabular-nums}
+.chordnow>div:first-child{border-color:var(--target)}
+.chordnow small{color:var(--muted);font-size:.8rem}
+.bars{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:6px;margin-top:12px}
+.bar{display:flex;flex-direction:column;align-items:center;padding:6px 2px;border:1px solid var(--rule);border-radius:8px;font-weight:700;font-variant-numeric:tabular-nums}
+.bar span{font-size:.65rem;font-weight:400;color:var(--muted)}
+.bar.now{border-color:var(--target);background:color-mix(in srgb, var(--target) 22%, transparent)}
+.bar.past{opacity:.45}
+.progtip{margin:8px 0 0;color:var(--muted);font-size:.9rem;max-width:70ch}
+@media (max-width:560px){
+  .tabs{width:100%;justify-content:space-between}
+  .tabs button{padding:8px 6px;font-size:.76rem;white-space:nowrap}
+  .chordnow{gap:6px}
+  .chordnow>div{padding:8px}
+  .chordnow .eyebrow{font-size:.62rem;letter-spacing:.04em}
+  .chordnow b{font-size:1.8rem}
+}
 .celebrate{margin-top:10px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb, var(--ok) 15%, transparent);color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -168,6 +188,7 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
       <button role="tab" id="tab-songs" aria-selected="true" data-view="songs">Kappaleet</button>
       <button role="tab" id="tab-quiz" aria-selected="false" data-view="quiz">Nuotinluku</button>
       <button role="tab" id="tab-free" aria-selected="false" data-view="free">Vapaa soitto</button>
+      <button role="tab" id="tab-chords" aria-selected="false" data-view="chords">Sointukierto</button>
     </nav>
   </header>
 
@@ -232,6 +253,30 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
       <div class="bigname" id="free-name">–</div>
       <div class="staffbox"><svg class="staff" id="free-staff" viewBox="0 0 640 130"></svg></div>
     </div>
+  </section>
+
+  <section class="stage" id="view-chords" role="tabpanel" aria-labelledby="tab-chords" hidden>
+    <div class="songlist" id="prog-list"></div>
+    <div class="row spread" style="margin-top:16px">
+      <div>
+        <div class="eyebrow" id="prog-meta"></div>
+        <h2 id="prog-title"></h2>
+        <div class="legend"><span><i style="background:var(--target)"></i>Oikea käsi: sointu</span><span><i style="background:var(--target-lh)"></i>Vasen käsi: basso</span></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="prog-listen">▶ Kuuntele</button>
+        <button class="btn" id="prog-restart">Aloita alusta</button>
+      </div>
+    </div>
+    <div class="chordnow">
+      <div><span class="eyebrow">Nyt</span><b id="chord-now"></b><small id="chord-now-name"></small></div>
+      <div><span class="eyebrow">Seuraava sointu</span><b id="chord-next"></b><small id="chord-next-name"></small></div>
+      <div><span class="eyebrow">Kierroksia</span><b id="prog-rounds">0</b><small>soitettu</small></div>
+    </div>
+    <div class="bars" id="prog-bars" aria-label="Sointukierron tahdit"></div>
+    <div class="staffbox"><svg class="staff" id="prog-staff" viewBox="0 0 640 130" aria-label="Nuottiviivasto"></svg></div>
+    <div class="row"><span class="status" id="prog-status"></span></div>
+    <p class="progtip" id="prog-tip"></p>
   </section>
 
   <div class="piano">
@@ -633,7 +678,7 @@ function resetSong(){
 }
 function setStatus(t, cls){ const s = $("song-status"); s.textContent = t; s.className = "status " + cls; }
 const handWord = h => h === "L" ? "vasen" : "oikea";
-function stepNames(notes){ return notes.map(n => nameOf(n.midi) + octOf(n.midi) + (songState.song.hands === 2 ? ` (${handWord(n.hand)})` : "")).join(" + "); }
+function stepNames(notes, hands = songState.song.hands){ return notes.map(n => nameOf(n.midi) + octOf(n.midi) + (hands === 2 ? ` (${handWord(n.hand)})` : "")).join(" + "); }
 function drawSongStaff(at, playing){
   const { song } = songState, N = song.steps.length;
   const start = Math.max(0, Math.min(at-2, N-8));
@@ -658,12 +703,12 @@ function renderSong(){
   }).join("");
   if (currentView === "songs") showStepTargets();
 }
-function showStepTargets(){
-  clearTargets();
-  const st = songState.song.steps[songState.pos]; if (!st) return;
-  for (const n of st.notes) if (!songState.hits.has(n.midi)) keyEls[n.midi]?.classList.add(n.hand === "L" ? "target-lh" : "target");
+function showTargets(st, hits){
+  clearTargets(); if (!st) return;
+  for (const n of st.notes) if (!hits.has(n.midi)) keyEls[n.midi]?.classList.add(n.hand === "L" ? "target-lh" : "target");
   reveal(st.notes.map(n => n.midi));
 }
+function showStepTargets(){ showTargets(songState.song.steps[songState.pos], songState.hits); }
 function advance(){
   const { song } = songState;
   songState.pos++; songState.hits.clear();
@@ -695,6 +740,7 @@ function songNote(m, fromMic){
 // Result of the microphone check for a two-hand step (see chordCheck).
 function songHeard(res){
   const { song } = songState; if (songState.playing || songState.pos >= song.steps.length) return;
+  if (!res.ok && res.unsure) return; // can't tell yet: wait for a clearer strike
   const st = song.steps[songState.pos];
   if (res.ok){ for (const n of st.notes) flash(n.midi, "ok", 260); advance(); }
   else {
@@ -728,6 +774,125 @@ function stopListen(){
 }
 $("song-listen").onclick = listen;
 $("song-restart").onclick = () => { stopListen(); resetSong(); };
+
+/* ---------- chord progressions (Sointukierto) ---------- */
+// PROG-START
+// Right-hand chord shapes close to middle C (so the hand hardly moves) and the bass notes: root, then fifth.
+const CHORDS = {
+  Am: { rh: ["C4:1","E4:2","A4:5"], bass: ["A2","E2"], name: "a-molli" },
+  Dm: { rh: ["D4:1","F4:3","A4:5"], bass: ["D3","A2"], name: "d-molli" },
+  E:  { rh: ["H3:1","E4:2","G#4:4"], bass: ["E2","H2"], name: "E-duuri" },
+};
+// A progression loops for as long as you want. These are easy practice progressions in the mood of the song,
+// not the song's own chord chart.
+const PROGRESSIONS = [
+  { id: "sakkijarvi", title: "Säkkijärven polkka", meter: "2/4", bpm: 132,
+    bars: "Am Am E E E E Am Am Dm Dm Am Am E E Am Am",
+    tip: "Polkassa vasen käsi soittaa bassosävelen tahdin ensimmäisellä iskulla ja oikea käsi soinnun toisella: um-pa, um-pa. Kun sama sointu jatkuu seuraavaan tahtiin, basso vaihtuu pohjasävelestä kvinttiin. Oikea käsi pysyy melkein paikallaan: a-mollista d-molliin liikkuvat vain kaksi alinta sormea, ja E-duuriin peukalo laskeutuu H:lle. Tämä on helppo polkkakierto kappaleen tunnelmaan, ei sen alkuperäinen sointukaava." },
+].map(p => {
+  const bars = p.bars.split(" "), rh = [], lh = [];
+  let run = 0;
+  bars.forEach((c, i) => {
+    run = i > 0 && bars[i-1] === c ? run + 1 : 0;
+    const d = CHORDS[c];
+    lh.push(`${d.bass[run % 2]}/1`, "R/1");            // beat 1: bass ("um")
+    rh.push("R/1", d.rh.join("+") + "/1");            // beat 2: chord ("pa")
+  });
+  const steps = buildSteps([{ hand: "R", seq: rh.join(" ") }, { hand: "L", seq: lh.join(" ") }]);
+  steps.forEach(st => { st.bar = Math.floor(st.t / 2); st.chord = bars[st.bar]; });
+  const all = steps.flatMap(st => st.notes.map(n => n.midi));
+  return { ...p, bars, steps, lo: Math.min(...all), hi: Math.max(...all) };
+});
+// PROG-END
+
+const prog = { p: PROGRESSIONS[0], pos: 0, hits: new Set(), rounds: 0, errors: 0, playing: null };
+function renderProgList(){
+  $("prog-list").innerHTML = PROGRESSIONS.map(p => `<button class="song" data-id="${p.id}" aria-pressed="${p === prog.p}">
+    <b>${p.title}</b><small>${p.meter} · ${[...new Set(p.bars)].join(" ")}</small></button>`).join("");
+}
+$("prog-list").addEventListener("click", e => { const b = e.target.closest(".song"); if (!b) return;
+  stopProgListen(); prog.p = PROGRESSIONS.find(p => p.id === b.dataset.id); resetProg(); });
+function progKeyboard(){ buildKeyboard(...rangeFor(prog.p.lo, prog.p.hi)); }
+function resetProg(){
+  prog.pos = 0; prog.hits.clear(); prog.rounds = 0; prog.errors = 0; mic.chord?.reset();
+  setProgStatus("Aloita vasemman käden bassosävelestä.", "");
+  if (currentView === "chords") progKeyboard();
+  renderProg(); renderProgList();
+}
+function setProgStatus(t, cls){ const s = $("prog-status"); s.textContent = t; s.className = "status " + cls; }
+function renderProg(at){
+  const { p } = prog, N = p.steps.length, cur = at ?? prog.pos, st = p.steps[cur];
+  $("prog-title").textContent = p.title;
+  $("prog-tip").textContent = "Kierto alkaa alusta heti, kun viimeinen tahti on soitettu, joten voit jatkaa niin kauan kuin haluat. " + p.tip;
+  $("prog-meta").textContent = `Sointukierto · ${p.meter}-tahti · ${p.bars.length} tahtia, toistuu`;
+  const nextBar = p.bars.findIndex((c, i) => i > st.bar && c !== st.chord);
+  const next = nextBar >= 0 ? p.bars[nextBar] : p.bars[0];
+  $("chord-now").textContent = st.chord; $("chord-now-name").textContent = CHORDS[st.chord].name;
+  $("chord-next").textContent = next; $("chord-next-name").textContent = CHORDS[next].name;
+  $("prog-rounds").textContent = prog.rounds;
+  $("prog-bars").innerHTML = p.bars.map((c, i) => `<div class="bar ${i === st.bar ? "now" : i < st.bar ? "past" : ""}"><span>${i+1}</span>${c}</div>`).join("");
+  // the staff wraps around, so the start of the next round is already visible near the end
+  drawStaff($("prog-staff"), Array.from({ length: 8 }, (_, k) => {
+    const i = ((cur - 2 + k) % N + N) % N;
+    return { notes: p.steps[i].notes, state: k === 2 ? "now" : k < 2 && at == null ? "past" : "" };
+  }), { dx: 66, grand: true });
+  if (currentView === "chords" && at == null) showTargets(st, prog.hits);
+}
+function progAdvance(){
+  const { p } = prog;
+  prog.pos++; prog.hits.clear();
+  if (prog.pos >= p.steps.length){
+    prog.pos = 0; prog.rounds++;
+    setProgStatus(`Kierros ${prog.rounds} valmis! Jatka samaan tahtiin niin kauan kuin haluat.`, "ok");
+  } else setProgStatus(p.steps[prog.pos].notes[0].hand === "L" ? "Basso…" : "…ja sointu.", "ok");
+  renderProg();
+}
+function progNote(m, fromMic){
+  if (prog.playing || fromMic) return; // from the microphone the step is checked from the sound spectrum (progHeard)
+  const st = prog.p.steps[prog.pos], want = st.notes.map(n => n.midi);
+  if (want.includes(m)){
+    flash(m, "ok", 200); prog.hits.add(m);
+    if (want.every(w => prog.hits.has(w))) progAdvance();
+    else { setProgStatus(`Soita vielä ${stepNames(st.notes.filter(n => !prog.hits.has(n.midi)), 2)}.`, "ok"); showTargets(st, prog.hits); }
+  } else {
+    prog.errors++; flash(m, "bad");
+    setProgStatus(`Tuo oli ${nameOf(m)}${octOf(m)}. Soita ${stepNames(st.notes, 2)}.`, "bad");
+  }
+}
+function progHeard(res){
+  if (prog.playing) return;
+  const st = prog.p.steps[prog.pos];
+  // in a progression the hands take turns, so a note hidden under the still-ringing chord gets the benefit of the doubt
+  if (res.ok || res.unsure){ for (const n of st.notes) flash(n.midi, "ok", 220); progAdvance(); }
+  else { prog.errors++; setProgStatus(`Kuulin äänen, mutta en löytänyt säveltä ${stepNames(st.notes.filter(n => res.missing.includes(n.midi)), 2)}.`, "bad"); }
+}
+function progListen(){
+  if (prog.playing){ stopProgListen(); return; }
+  audio(); const { p } = prog, beat = 60/p.bpm*1000;
+  $("prog-listen").textContent = "■ Pysäytä"; clearTargets();
+  let i = prog.pos; const timers = []; prog.playing = timers;
+  const step = () => {
+    if (prog.playing !== timers) return;
+    const st = p.steps[i];
+    for (const n of st.notes){
+      noteOn(n.midi, n.hand === "L" ? 0.8 : 0.55); keyEls[n.midi]?.classList.add("down");
+      timers.push(setTimeout(() => { noteOff(n.midi); keyEls[n.midi]?.classList.remove("down"); }, n.dur*beat*0.8));
+    }
+    renderProg(i);
+    i = (i + 1) % p.steps.length; // loops until stopped
+    if (timers.length > 200) timers.splice(0, 150);
+    timers.push(setTimeout(step, st.len*beat));
+  };
+  step();
+}
+function stopProgListen(){
+  if (prog.playing) prog.playing.forEach(clearTimeout);
+  prog.playing = null; $("prog-listen").textContent = "▶ Kuuntele";
+  for (const m in keyEls){ keyEls[m].classList.remove("down"); noteOff(+m); }
+  renderProg();
+}
+$("prog-listen").onclick = progListen;
+$("prog-restart").onclick = () => { stopProgListen(); resetProg(); };
 
 /* ---------- quiz ---------- */
 const quiz = { target: 64, score: 0, streak: 0, best: store.get("qbest", 0), misses: 0, locked: false };
@@ -876,7 +1041,7 @@ function chordCheck(base, now, binHz, midis){
     // partials shared with another note of the same step (e.g. C4 over C3) can't show which note sounded
     const others = new Set();
     for (const o of midis) if (o !== m) for (let h=1; h<=12; h++){ const ob = partial(freq(o), h); for (let d=-2; d<=2; d++) others.add(ob+d); }
-    let hits = 0, tried = 0, loudBefore = 0, shared = 0;
+    let hits = 0, tried = 0, loudBefore = 0, shared = 0, oddHits = 0, oddTried = 0;
     // low notes: their lowest partials sit too close to the neighbouring key's, so start higher
     for (let h = f < 150 ? 3 : f < 300 ? 2 : 1; h <= 12 && tried < 6; h++){
       const b = partial(f, h); if (b+3 > lim) break;
@@ -888,13 +1053,17 @@ function chordCheck(base, now, binHz, midis){
       const lv = v(now[arg]), lb = Math.max(v(base[b-1]), v(base[b]), v(base[b+1]));
       if (lb > peak - 30) loudBefore++;
       const rise = lb > peak - 30 ? 2 : 6; // a note that was still ringing loudly rises less when struck again
-      if (lv > peak - 45 && lv - lb >= rise) hits++;
+      if (h % 2) oddTried++;
+      if (lv > peak - 45 && lv - lb >= rise){ hits++; if (h % 2) oddHits++; }
     }
     // too few partials of its own (e.g. B5 over E4, whose 3rd partial is B5): can't be judged, like an octave
     if (tried < 2 && shared >= 2) continue;
     // the top note of a step whose partials mostly coincide with lower notes (B5 over E4): one clear partial of its own is enough
     const need = shared >= tried && tried <= 2 && midis.every(o => o <= m) ? Math.min(1, tried) : Math.min(2, tried);
-    if (hits < need){ missing.push(m); if (loudBefore >= need) ringing.push(m); }
+    // unsure only when the note has fewer than two partials that weren't already ringing loudly before the strike
+    // a low note must also show an odd partial: its even partials are what the same note an octave or two up produces (E4 over E2)
+    const octaveOnly = f < 300 && oddTried > 0 && oddHits === 0;
+    if (hits < need || octaveOnly){ missing.push(m); if (tried - loudBefore < 2) ringing.push(m); }
   }
   return { ok: missing.length === 0, missing, unsure: missing.length > 0 && ringing.length === missing.length };
 }
@@ -916,7 +1085,8 @@ function createChordListener(binHz, expect, onResult){
       let flux = 0;
       if (prev){ const fl = peak - 50; for (let i=3; i<=lim; i++) if (spec[i] > fl){ const d = spec[i] - Math.max(prev[i], fl); if (d > 0) flux += d; } flux /= lim; }
       const mean = fluxHist.length ? fluxHist.reduce((a,b) => a+b, 0)/fluxHist.length : 0;
-      const fluxOnset = audible && flux > Math.max(2, 1.8*mean) && flux > prevFlux;
+      // threshold 1: a soft bass note under a ringing chord gives ~1.5, steady sound ~0.05 (silence is excluded by audible)
+      const fluxOnset = audible && flux > Math.max(1, 2.5*mean) && flux > prevFlux;
       fluxHist.push(flux); if (fluxHist.length > 30) fluxHist.shift(); prevFlux = flux;
       ring.push(spec); if (ring.length > 4) ring.shift();
       if ((levelOnset || fluxOnset) && t - lastOnset > 0.09 && ring.length === 4){ queue.push({ t, due: t + 0.1, base: ring[0] }); lastOnset = t; }
@@ -926,8 +1096,9 @@ function createChordListener(binHz, expect, onResult){
         if (peak < -80) continue; // nothing but noise: not a key strike
         const res = chordCheck(p.base, spec, binHz, midis);
         if (res.ok){ queue = queue.filter(q => q.t - p.t > 0.1); onResult(res); }
-        // if the missing notes were still ringing loudly we can't tell a new strike from the old sound: wait for a clearer one
-        else if (!queue.length && !res.unsure) onResult(res);
+        // "unsure": the missing notes were still ringing loudly, so a new strike can't be told from the old sound.
+        // It is passed on too; each exercise decides whether to wait (songs) or move on (chord progressions).
+        else if (!queue.length) onResult(res);
       }
     }
   };
@@ -959,7 +1130,8 @@ async function startMic(){
   mic.an = c.createAnalyser(); mic.an.fftSize = 2048; mic.src.connect(mic.an);
   mic.an2 = c.createAnalyser(); mic.an2.fftSize = 4096; mic.an2.smoothingTimeConstant = 0; mic.src.connect(mic.an2);
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
-    () => { const st = songState.song.steps[songState.pos]; return st ? st.notes.map(n => n.midi) : null; }, songHeard);
+    () => { const a = activePractice(), st = a && a.steps[a.pos]; return st ? st.notes.map(n => n.midi) : null; },
+    res => activePractice()?.heard(res));
   mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
@@ -974,15 +1146,22 @@ function stopMic(){
   mic.on = false; mic.chord = null; micBtn.setAttribute("aria-pressed", "false"); $("mic-label").textContent = "Kuuntele pianoa";
   $("mic-live").hidden = true;
 }
+// Exercises whose steps are checked from the sound spectrum: two-hand songs and chord progressions.
+function activePractice(){
+  if (currentView === "songs" && songState.song.hands === 2 && songState.pos < songState.song.steps.length)
+    return { steps: songState.song.steps, pos: songState.pos, heard: songHeard };
+  if (currentView === "chords") return { steps: prog.p.steps, pos: prog.pos, heard: progHeard };
+  return null;
+}
 function micLoop(){
   if (!mic.on) return;
   const t = ctx.currentTime;
   mic.an.getFloatTimeDomainData(mic.buf);
   const r = mic.det.process(mic.buf, t);
-  const twoHand = currentView === "songs" && songState.song.hands === 2 && songState.pos < songState.song.steps.length;
+  const twoHand = !!activePractice();
   const toPct = v => Math.max(0, Math.min(100, (Math.log10(Math.max(v, 1e-4)) + 4) / 4 * 100));
   $("mic-level").style.width = toPct(r.rms) + "%"; $("mic-gate").style.left = toPct(r.gate) + "%";
-  const busy = synthBusy() || songState.playing;
+  const busy = synthBusy() || songState.playing || prog.playing;
   if (twoHand){
     const spec = new Float32Array(mic.an2.frequencyBinCount); mic.an2.getFloatFrequencyData(spec);
     if (busy) mic.chord.reset(); else mic.chord.frame(t, spec, r.events.some(ev => ev.type === "onset"), r.rms > r.gate);
@@ -1008,27 +1187,30 @@ micSens.oninput = () => { store.set("sens", +micSens.value); mic.det?.setSensiti
 
 /* ---------- routing ---------- */
 let currentView = "songs";
+const VIEWS = ["songs","quiz","free","chords"];
 function onNote(m, fromMic){
   if (currentView === "songs") songNote(m, fromMic);
   else if (currentView === "quiz") quizNote(m);
+  else if (currentView === "chords") progNote(m, fromMic);
   else { freeNotes.push({ midi: m }); if (freeNotes.length > 8) freeNotes.shift(); renderFree(); }
 }
 function show(view){
   if (view !== "songs") stopListen();
+  if (view !== "chords") stopProgListen();
   currentView = view; mic.chord?.reset();
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
-  for (const v of ["songs","quiz","free"]) $("view-"+v).hidden = v !== view;
-  if (view === "songs") songKeyboard(); else if (view === "quiz") quizKeyboard(); else buildKeyboard(48, 84);
-  clearTargets(); if (view !== "songs") reveal([60]);
-  if (view === "songs") renderSong(); else if (view === "quiz") renderQuiz(); else renderFree();
+  for (const v of VIEWS) $("view-"+v).hidden = v !== view;
+  if (view === "songs") songKeyboard(); else if (view === "quiz") quizKeyboard(); else if (view === "chords") progKeyboard(); else buildKeyboard(48, 84);
+  clearTargets(); if (view === "quiz" || view === "free") reveal([60]);
+  if (view === "songs") renderSong(); else if (view === "quiz") renderQuiz(); else if (view === "chords") renderProg(); else renderFree();
   if (location.hash.slice(1) !== view) history.replaceState(null, "", "#"+view);
 }
 document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(b.dataset.view); });
-window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (["songs","quiz","free"].includes(h)) show(h); });
+window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (VIEWS.includes(h)) show(h); });
 
 songState.song = SONGS.find(s => s.id === store.get("song", "ukko")) || SONGS[1];
-renderSongList(); newTarget();
-const h0 = location.hash.slice(1); show(["songs","quiz","free"].includes(h0) ? h0 : "songs");
+renderSongList(); renderProgList(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
+const h0 = location.hash.slice(1); show(VIEWS.includes(h0) ? h0 : "songs");
 })();
 </script>
 
