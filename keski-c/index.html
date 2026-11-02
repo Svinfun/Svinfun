@@ -134,6 +134,8 @@ select.sel{font:inherit;font-size:.9rem;border:1px solid var(--rule);background:
 .target-lh.white,.target-lh.black{background:var(--target-lh);color:var(--on-lh)}
 .ok.white,.ok.black{background:var(--ok)!important;color:#fff}
 .bad.white,.bad.black{background:var(--bad)!important;color:#fff}
+.roll{display:block;height:140px;min-width:480px}
+@media (max-width:560px){.roll{height:110px}}
 .midc{position:absolute;bottom:46px;font-size:.6rem;color:#8A9295;font-weight:700;letter-spacing:.04em}
 
 .tips{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 24px;color:var(--muted);font-size:.9rem}
@@ -340,12 +342,14 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
         </span>
       </div>
       <div class="row" style="gap:14px">
+        <label class="chk" style="color:#AEB6B8"><input type="checkbox" id="opt-roll" checked><span>Nuottivirta</span></label>
         <label class="chk" style="color:#AEB6B8"><input type="checkbox" id="opt-labels" checked><span>Sävelnimet</span></label>
         <label class="chk" style="color:#AEB6B8"><input type="checkbox" id="opt-kb" checked><span>Näppäimet</span></label>
       </div>
       <span id="midi-status">Soita hiirellä, sormella tai tietokoneen näppäimistöllä</span>
     </div>
     <p class="micmsg" id="mic-msg" hidden></p>
+    <canvas class="roll" id="roll" aria-hidden="true"></canvas>
     <div class="keys" id="keys"></div>
   </div>
 
@@ -888,6 +892,7 @@ function listen(){
       timers.push(setTimeout(() => { noteOff(n.midi); keyEls[n.midi]?.classList.remove("down"); }, n.dur*beat*0.9));
     }
     drawSongStaff(i, true); reveal(st.notes.map(n => n.midi));
+    roll.clock = { t: st.t, at: performance.now(), beat, len: st.len };
     i++; timers.push(setTimeout(step, st.len*beat));
   };
   step();
@@ -895,7 +900,7 @@ function listen(){
 function stopListen(){
   stopAccompaniment();
   if (songState.playing) songState.playing.forEach(clearTimeout);
-  songState.playing = null; $("song-listen").textContent = "▶ Kuuntele";
+  songState.playing = null; $("song-listen").textContent = "▶ Kuuntele"; roll.clock = null; roll.T = null;
   for (const m in keyEls){ keyEls[m].classList.remove("down"); noteOff(+m); }
   renderSong();
 }
@@ -1044,16 +1049,18 @@ function progListen(){
   if (prog.playing){ stopProgListen(); return; }
   audio(); const { p } = prog, beat = 60/p.bpm*1000;
   $("prog-listen").textContent = "■ Pysäytä"; clearTargets();
-  let i = prog.pos; const timers = []; prog.playing = timers;
+  let i = prog.pos, cycle = prog.rounds; const timers = []; prog.playing = timers;
+  const loopLen = p.pattern.split(" ").length * p.beat * p.bars.length;
   const step = () => {
     if (prog.playing !== timers) return;
     const st = p.steps[i];
+    roll.clock = { t: cycle * loopLen + st.t, at: performance.now(), beat, len: st.len };
     for (const n of st.notes){
       noteOn(n.midi, n.hand === "L" ? 0.8 : 0.55); keyEls[n.midi]?.classList.add("down");
       timers.push(setTimeout(() => { noteOff(n.midi); keyEls[n.midi]?.classList.remove("down"); }, n.dur*beat*0.8));
     }
     renderProg(i);
-    i = (i + 1) % p.steps.length; // loops until stopped
+    i = (i + 1) % p.steps.length; if (i === 0) cycle++; // loops until stopped
     if (timers.length > 200) timers.splice(0, 150);
     timers.push(setTimeout(step, st.len*beat));
   };
@@ -1061,12 +1068,100 @@ function progListen(){
 }
 function stopProgListen(){
   if (prog.playing) prog.playing.forEach(clearTimeout);
-  prog.playing = null; $("prog-listen").textContent = "▶ Kuuntele";
+  prog.playing = null; $("prog-listen").textContent = "▶ Kuuntele"; roll.clock = null; roll.T = null;
   for (const m in keyEls){ keyEls[m].classList.remove("down"); noteOff(+m); }
   renderProg();
 }
 $("prog-listen").onclick = progListen;
 $("prog-restart").onclick = () => { stopProgListen(); resetProg(); };
+
+/* ---------- falling notes (nuottivirta) ---------- */
+// Bars fall toward the keyboard: a bar's length is the note's duration, and when it reaches the keys that note
+// is next. While you play the bars wait for you and glide on when you hit the right keys; Kuuntele scrolls in tempo.
+const roll = { cv: $("roll"), on: store.get("roll", true), T: null, clock: null, last: 0 };
+const rollCtx = roll.cv.getContext("2d");
+const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+$("opt-roll").checked = roll.on;
+$("opt-roll").onchange = () => { roll.on = $("opt-roll").checked; store.set("roll", roll.on); };
+function pixelsPerBeat(steps){
+  // the shortest note gets at least ~16 px
+  const shortest = Math.min(...steps.flatMap(st => st.notes.map(n => n.dur)));
+  return Math.max(36, Math.min(110, 16 / shortest));
+}
+function rollSource(){
+  if (currentView === "songs"){
+    const { song, pos } = songState, N = song.steps.length;
+    song.ppb ??= pixelsPerBeat(song.steps);
+    const end = song.steps[N-1].t + song.steps[N-1].len;
+    const mine = n => songState.hand === "both" || song.hands === 1 || n.hand === songState.hand;
+    return { steps: song.steps, loop: 0, T: pos < N ? song.steps[pos].t : end, cur: pos, hits: songState.hits, mine, ppb: song.ppb };
+  }
+  if (currentView === "chords"){
+    const { p, pos } = prog, loop = p.pattern.split(" ").length * p.beat * p.bars.length;
+    p.ppb ??= pixelsPerBeat(p.steps);
+    return { steps: p.steps, loop, T: prog.rounds * loop + p.steps[pos].t, cur: pos, hits: prog.hits, mine: () => true, ppb: p.ppb };
+  }
+  return null;
+}
+function drawRoll(now){
+  const src = roll.on ? rollSource() : null, cv = roll.cv;
+  cv.hidden = !src;
+  if (!src) return;
+  const w = keysEl.offsetWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!w || !h) return;
+  if (cv.width !== Math.round(w*dpr) || cv.height !== Math.round(h*dpr)){ cv.width = Math.round(w*dpr); cv.height = Math.round(h*dpr); }
+  cv.style.width = w + "px";
+  // where the keyboard edge stands on the time axis (beats)
+  if (roll.clock){
+    roll.T = roll.clock.t + Math.min((now - roll.clock.at) / roll.clock.beat, roll.clock.len);
+  } else {
+    const target = src.T;
+    if (roll.T == null || reduceMotion.matches || target < roll.T - 1e-6 || target - roll.T > 6) roll.T = target;
+    else roll.T += (target - roll.T) * Math.min(1, (now - roll.last) / 90);
+  }
+  roll.last = now;
+  const T = roll.T, ppb = src.ppb, g = rollCtx;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, w, h);
+  // faint beat lines help to feel the rhythm
+  g.fillStyle = "rgba(255,255,255,0.06)";
+  for (let b = Math.ceil(T); (b - T) * ppb < h; b++) g.fillRect(0, Math.round(h - (b - T) * ppb), w, 1);
+  const cs = getComputedStyle(document.documentElement);
+  const col = { R: cs.getPropertyValue("--target").trim() || "#E0A21B", L: cs.getPropertyValue("--target-lh").trim() || "#8D5BC8" };
+  const ink = { R: "#2A1D00", L: cs.getPropertyValue("--on-lh").trim() || "#fff" };
+  const bars = [];
+  const rounds = src.loop ? [-1, 0, 1] : [0];
+  const base = src.loop ? Math.floor(T / src.loop) * src.loop : 0;
+  for (const k of rounds) src.steps.forEach((st, i) => {
+    const t = st.t + base + k * src.loop;
+    if ((t - T) * ppb > h) return;
+    for (const n of st.notes){
+      if (t + n.dur <= T + 1e-6) continue;          // already played
+      const el = keyEls[n.midi]; if (!el) continue;
+      const isCur = i === src.cur && Math.abs(t - T) < 1e-6 || (roll.clock && t <= T && t + n.dur > T);
+      bars.push({ n, t, el, mine: src.mine(n), hit: i === src.cur && src.hits.has(n.midi) && !roll.clock, cur: isCur, black: isBlack(n.midi) });
+    }
+  });
+  bars.sort((a, b) => a.black - b.black);           // black keys' bars on top
+  for (const b of bars){
+    const x = b.el.offsetLeft + 2, bw = Math.max(4, b.el.offsetWidth - 4);
+    const bottom = h - (b.t - T) * ppb, top = bottom - b.n.dur * ppb + 3;
+    const y0 = Math.max(top, -10), y1 = Math.min(bottom, h);
+    if (y1 <= y0) continue;
+    g.globalAlpha = !b.mine ? 0.28 : b.hit ? 0.3 : b.cur ? 1 : 0.82;
+    g.shadowColor = col[b.n.hand]; g.shadowBlur = b.cur && b.mine && !b.hit ? 14 : 0;
+    g.fillStyle = col[b.n.hand];
+    g.beginPath(); g.roundRect(x, y0, bw, y1 - y0, 4); g.fill();
+    g.shadowBlur = 0;
+    if (y1 - y0 >= 16 && bw >= 13 && b.mine){
+      g.fillStyle = ink[b.n.hand]; g.font = `700 ${Math.min(12, bw*0.5)}px system-ui, sans-serif`; g.textAlign = "center";
+      g.fillText(nameOf(b.n.midi), x + bw/2, y1 - 5);
+    }
+  }
+  g.globalAlpha = 1;
+}
+// started on the next frame, once the whole page script has run
+requestAnimationFrame(function rollLoop(now){ drawRoll(now); requestAnimationFrame(rollLoop); });
 
 /* ---------- quiz ---------- */
 const quiz = { target: 64, score: 0, streak: 0, best: pstore.get("qbest", 0), misses: 0, locked: false };
@@ -1236,7 +1331,7 @@ function chordCheck(base, now, binHz, midis){
     // the top note of a step whose partials mostly coincide with lower notes (B5 over E4): one clear partial of its own is enough
     const need = shared >= tried && tried <= 2 && midis.every(o => o <= m) ? Math.min(1, tried) : Math.min(2, tried);
     // unsure only when the note has fewer than two partials that weren't already ringing loudly before the strike
-    // a bass note (below ~150 Hz) must also show an odd partial: its even partials are what the same note an octave or two up produces (E4 over E2)
+    // a low note must also show an odd partial: its even partials are what the same note an octave or two up produces (E4 over E2)
     const octaveOnly = f < 150 && oddTried > 0 && oddHits === 0;
     // ringing: hardly any partials of its own that weren't already sounding (strict, for chord progressions)
     // maybe: most of its partials were already sounding (lenient, for songs, which then just wait)
