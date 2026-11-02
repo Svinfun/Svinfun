@@ -18,7 +18,8 @@ const lib = new Function(
   between("// DETECTOR-START", "// DETECTOR-END") +
   between("// CHORD-START", "// CHORD-END") +
   between("// PROG-START", "// PROG-END") +
-  ";return { parseTok, buildSteps, createDetector, chordCheck, createChordListener, FLUX_SONG, FLUX_CHORDS, CHORDS, PROGRESSIONS };"
+  between("// MIDI-START", "// MIDI-END") +
+  ";return { parseTok, buildSteps, createDetector, chordCheck, createChordListener, FLUX_SONG, FLUX_CHORDS, CHORDS, PROGRESSIONS, stepsToEvents, eventsToBars, onsetsOf, barRect, parseMidi };"
 )();
 
 // Song data straight from the SONGS list
@@ -28,7 +29,7 @@ for (const blk of songsSrc.split('{ id:"').slice(1)){
   const id = blk.slice(0, blk.indexOf('"'));
   const f = k => (blk.match(new RegExp("\\b" + k + ':"([^"]+)"')) || [])[1];
   const hands = /hands:2/.test(blk) ? 2 : 1;
-  songs[id] = { id, hands, rh: f("rh"), lh: f("lh"), lh2: f("lh2"), lyrics: f("lyrics") };
+  songs[id] = { id, hands, bpm: +(blk.match(/bpm:(\d+)/) || [])[1] || 100, rh: f("rh"), lh: f("lh"), lh2: f("lh2"), lyrics: f("lyrics") };
 }
 function stepsOf(id){
   const s = songs[id];

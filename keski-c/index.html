@@ -174,7 +174,8 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 .progtip{margin:8px 0 0;color:var(--muted);font-size:.9rem;max-width:70ch}
 @media (max-width:560px){
   .tabs{width:100%;justify-content:space-between}
-  .tabs button{padding:8px 6px;font-size:.76rem;white-space:nowrap}
+  .tabs{overflow-x:auto}
+  .tabs button{padding:8px 6px;font-size:.74rem;white-space:nowrap}
   .chordnow{gap:6px}
   .chordnow>div{padding:8px}
   .chordnow .eyebrow{font-size:.62rem;letter-spacing:.04em}
@@ -203,6 +204,14 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 .chip.inrange{box-shadow:inset 0 -3px 0 var(--accent)}
 .chip.pickstart{outline:2px solid var(--target);outline-offset:1px}
 .chip .other{opacity:.35}
+/* video mode */
+.vid-stage{margin-top:12px;background:#07090B;border-radius:12px;overflow:hidden}
+.vid-canvas{display:block;width:100%;height:min(62vh,560px);touch-action:none;cursor:pointer}
+.vid-stage:fullscreen{display:flex;flex-direction:column;border-radius:0}
+.vid-stage:fullscreen .vid-canvas{flex:1;height:auto}
+.vid-transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;background:#101315}
+#vid-seek{flex:1 1 160px;accent-color:#E0A21B}
+.vid-time{color:#AEB6B8;font-variant-numeric:tabular-nums;font-size:.85rem}
 .celebrate{margin-top:10px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb, var(--ok) 15%, transparent);color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -230,6 +239,7 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
       <button role="tab" id="tab-quiz" aria-selected="false" data-view="quiz">Nuotinluku</button>
       <button role="tab" id="tab-free" aria-selected="false" data-view="free">Vapaa soitto</button>
       <button role="tab" id="tab-chords" aria-selected="false" data-view="chords">Sointukierto</button>
+      <button role="tab" id="tab-video" aria-selected="false" data-view="video">Videotila</button>
     </nav>
   </header>
 
@@ -331,6 +341,36 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
     <p class="progtip" id="prog-tip"></p>
   </section>
 
+  <section class="stage" id="view-video" role="tabpanel" aria-labelledby="tab-video" hidden>
+    <div class="row spread">
+      <div>
+        <div class="eyebrow">Videotila</div>
+        <h2>Putoavat nuotit</h2>
+      </div>
+      <div class="row">
+        <label class="tempo" for="vid-src">Kappale <select class="sel" id="vid-src"></select></label>
+        <label class="btn" for="vid-file">Tuo MIDI-tiedosto</label>
+        <input type="file" id="vid-file" accept=".mid,.midi,audio/midi,audio/x-midi" hidden>
+      </div>
+    </div>
+    <div class="practice">
+      <div class="seg" id="vid-mode" role="group" aria-label="Tila"><button data-mode="watch" aria-pressed="true">Katso</button><button data-mode="play" aria-pressed="false">Soita mukana</button></div>
+      <div class="seg" id="vid-hand" role="group" aria-label="Kumpi käsi soittaa" hidden><button data-hand="both" aria-pressed="true">Molemmat kädet</button><button data-hand="R" aria-pressed="false">Oikea</button><button data-hand="L" aria-pressed="false">Vasen</button></div>
+      <label class="tempo" for="vid-tempo">Tempo <input type="range" id="vid-tempo" min="25" max="150" step="5" value="100"><output id="vid-tempo-out">100 %</output></label>
+    </div>
+    <div class="vid-stage" id="vid-stage">
+      <canvas class="vid-canvas" id="vid-canvas" aria-label="Putoavat nuotit ja koskettimisto"></canvas>
+      <div class="vid-transport">
+        <button class="btn primary" id="vid-play">▶ Toista</button>
+        <button class="btn" id="vid-restart">Alkuun</button>
+        <input type="range" id="vid-seek" min="0" max="1000" value="0" aria-label="Kohta kappaleessa">
+        <span class="vid-time" id="vid-time">0:00 / 0:00</span>
+        <button class="btn" id="vid-full">Koko näyttö</button>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px"><span class="status" id="vid-status"></span></div>
+  </section>
+
   <div class="piano">
     <div class="piano-top">
       <div class="micbar">
@@ -359,6 +399,7 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
     <div><h3>Kaksi kättä</h3><p>Keltainen kosketin on oikealle kädelle ja violetti vasemmalle. Kun soitat kaksi säveltä yhtä aikaa, soita ne samalla hetkellä. Mikrofonin kautta sovellus tarkistaa, kuuluvatko odotetut sävelet. Samaa säveltä kahdessa oktaavissa (esimerkiksi C3 ja C4 yhtä aikaa) se ei pysty erottamaan toisistaan.</p></div>
     <div><h3>Sovellukseksi</h3><p>iPhonessa ja iPadissa: avaa sivu Safarissa, paina Jaa-painiketta ja valitse <b>Lisää Koti-valikkoon</b>. Androidissa Chromen valikosta <b>Asenna sovellus</b>. Kun sivu on kerran avattu, se toimii myös ilman verkkoyhteyttä.</p></div>
     <div><h3>Kädet erikseen</h3><p>Kahden käden kappaleissa voit harjoitella oikeaa tai vasenta kättä erikseen, jolloin sovellus soittaa toisen käden. <b>Valitse jakso</b> toistaa vaikeaa kohtaa niin kauan kuin haluat, ja tempoa voi hidastaa.</p></div>
+    <div><h3>Videotila</h3><p>Putoavat palkit osuvat koskettimiin juuri silloin, kun sävel soi, ja palkin pituus on sävelen kesto. <b>Katso</b> soittaa kappaleen kuin video, <b>Soita mukana</b> pysähtyy odottamaan, kunnes soitat oikeat koskettimet. Voit myös tuoda oman MIDI-tiedoston.</p></div>
     <div><h3>Keski-C</h3><p>Keski-C on pianon keskellä, kahden mustan koskettimen ryhmän vasemmalla puolella. Viivastolla se istuu oman apuviivansa päällä viivaston alapuolella.</p></div>
     <div><h3>Näppäimistö</h3><p><kbd>A</kbd> on keski-C, sitten <kbd>S</kbd> <kbd>D</kbd> <kbd>F</kbd> <kbd>G</kbd> <kbd>H</kbd> <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd> <kbd>Ö</kbd> <kbd>Ä</kbd>. Mustat koskettimet ovat ylärivillä: <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd>. Vasemman käden oktaavi C3–H3 on alarivillä: <kbd>Z</kbd> <kbd>X</kbd> <kbd>C</kbd> <kbd>V</kbd> <kbd>B</kbd> <kbd>N</kbd> <kbd>M</kbd>.</p></div>
     <div><h3>Sormitus</h3><p>Peukalo on 1 ja pikkusormi 5. C-asemassa oikean käden sormet lepäävät koskettimilla C, D, E, F ja G.</p></div>
@@ -1163,6 +1204,374 @@ function drawRoll(now){
 // started on the next frame, once the whole page script has run
 requestAnimationFrame(function rollLoop(now){ drawRoll(now); requestAnimationFrame(rollLoop); });
 
+// MIDI-START
+// Songs and MIDI files become the same thing: MIDI-like note events (Note-On and Note-Off, each with a time in
+// seconds, pitch, velocity and hand), and from those, bars that know when they start and how long they sound.
+function stepsToEvents(steps, bpm){
+  const spb = 60 / bpm, ev = [];
+  for (const st of steps) for (const n of st.notes){
+    const on = st.t * spb, len = n.dur * spb;
+    // a short gap before the next note, so repeated notes show as separate bars
+    ev.push({ type: "on", time: on, midi: n.midi, vel: 90, hand: n.hand },
+            { type: "off", time: on + len - Math.min(0.04, len * 0.12), midi: n.midi, vel: 0, hand: n.hand });
+  }
+  return ev.sort((a, b) => a.time - b.time || (a.type === "off" ? -1 : 1) - (b.type === "off" ? -1 : 1));
+}
+function eventsToBars(events){
+  const open = new Map(), bars = [];
+  const close = (m, t) => {
+    const s = open.get(m); if (!s) return; open.delete(m);
+    bars.push({ midi: m, start: s.time, end: Math.max(t, s.time + 0.05), vel: s.vel, hand: s.hand });
+  };
+  for (const e of events){
+    if (e.type === "on"){ close(e.midi, e.time); open.set(e.midi, e); }   // a new Note-On ends a note still held
+    else close(e.midi, e.time);
+  }
+  for (const [m, s] of [...open]) close(m, s.time + 0.5);                  // a Note-On with no Note-Off
+  return bars.sort((a, b) => a.start - b.start || a.midi - b.midi);
+}
+// Bars that start together (within 40 ms) form an onset: the moment the play-along mode waits for.
+function onsetsOf(bars){
+  const out = [];
+  for (const b of bars){
+    const last = out[out.length - 1];
+    if (last && b.start - last.time < 0.04) last.bars.push(b); else out.push({ time: b.start, bars: [b] });
+  }
+  return out;
+}
+// Where a bar is drawn: its bottom edge is (start - now) seconds above the keyboard line, so it reaches the key
+// exactly when the note starts, and its height is its duration. pps = pixels per second of music.
+function barRect(bar, now, keyY, pps){
+  return { bottom: keyY - (bar.start - now) * pps, top: keyY - (bar.end - now) * pps };
+}
+// Standard MIDI File reader: format 0 and 1, tempo changes, running status, SMPTE time. Notes on channel 10
+// (drums) are skipped. Hands: with two or more note tracks the first is the right hand and the second the left;
+// otherwise notes below middle C go to the left hand.
+function parseMidi(buffer){
+  const d = new DataView(buffer instanceof ArrayBuffer ? buffer : buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength));
+  let p = 0;
+  const str = n => { let s = ""; for (let i = 0; i < n; i++) s += String.fromCharCode(d.getUint8(p + i)); p += n; return s; };
+  const u32 = () => { const v = d.getUint32(p); p += 4; return v; }, u16 = () => { const v = d.getUint16(p); p += 2; return v; };
+  const vlq = () => { let v = 0, b; do { b = d.getUint8(p++); v = (v << 7) | (b & 0x7f); } while (b & 0x80); return v; };
+  if (str(4) !== "MThd") throw new Error("Tiedosto ei ole MIDI-tiedosto.");
+  const hlen = u32(), format = u16(), ntrks = u16(), division = d.getInt16(p); p += 2; p += hlen - 6;
+  const smpte = division < 0, tpq = smpte ? 0 : division;
+  const ticksPerSec = smpte ? (-(division >> 8)) * (division & 0xff) : 0;
+  const notes = [], tempos = [{ tick: 0, uspq: 500000 }], trackNotes = [];
+  let title = "";
+  for (let t = 0; t < ntrks && p < d.byteLength; t++){
+    if (str(4) !== "MTrk"){ break; }
+    const len = u32(), end = p + len; let tick = 0, status = 0, count = 0;
+    while (p < end){
+      tick += vlq();
+      let b = d.getUint8(p);
+      if (b & 0x80){ status = b; p++; } else if (!status) throw new Error("Virheellinen MIDI-tiedosto.");
+      const type = status & 0xf0, ch = status & 0x0f;
+      if (status === 0xff){
+        const meta = d.getUint8(p++), len = vlq();
+        if (meta === 0x51 && len === 3) tempos.push({ tick, uspq: (d.getUint8(p) << 16) | (d.getUint8(p+1) << 8) | d.getUint8(p+2) });
+        if (meta === 0x03 && !title){ for (let i = 0; i < len; i++) title += String.fromCharCode(d.getUint8(p + i)); }
+        p += len; if (meta === 0x2f) break;
+        status = 0;
+      } else if (status === 0xf0 || status === 0xf7){ p += vlq(); status = 0; }
+      else if (type === 0x90 || type === 0x80){
+        const m = d.getUint8(p++), v = d.getUint8(p++);
+        if (ch !== 9){ notes.push({ tick, type: type === 0x90 && v > 0 ? "on" : "off", midi: m, vel: v, track: t }); count++; }
+      } else if (type === 0xc0 || type === 0xd0) p += 1;
+      else p += 2;
+    }
+    p = end;
+    if (count) trackNotes.push(t);
+  }
+  // ticks to seconds through the tempo map
+  tempos.sort((a, b) => a.tick - b.tick);
+  const secAt = tick => {
+    if (smpte) return tick / ticksPerSec;
+    let s = 0, prev = tempos[0];
+    for (const tp of tempos.slice(1)){ if (tp.tick >= tick) break; s += (tp.tick - prev.tick) / tpq * prev.uspq / 1e6; prev = tp; }
+    return s + (tick - prev.tick) / tpq * prev.uspq / 1e6;
+  };
+  const handOf = n => trackNotes.length >= 2 ? (n.track === trackNotes[0] ? "R" : n.track === trackNotes[1] ? "L" : n.midi < 60 ? "L" : "R") : n.midi < 60 ? "L" : "R";
+  const events = notes.map(n => ({ type: n.type, time: secAt(n.tick), midi: n.midi, vel: n.vel, hand: handOf(n) }))
+    .sort((a, b) => a.time - b.time || (a.type === "off" ? -1 : 1) - (b.type === "off" ? -1 : 1));
+  const bpm = Math.round(60e6 / (tempos.find(tp => tp.tick === 0 && tp.uspq !== 500000)?.uspq || tempos[tempos.length > 1 ? 1 : 0].uspq));
+  return { format, tracks: ntrks, title: title.trim(), bpm, events };
+}
+// MIDI-END
+
+/* ---------- video mode (Videotila): Synthesia-style falling bars ---------- */
+// The timeline runs on the audio clock (AudioContext.currentTime), so the picture and the scheduled sound share
+// one clock. pos is the position in the music in seconds at 100 % tempo; at tempo r it advances r seconds per second.
+const vid = {
+  src: null, title: "", bars: [], onsets: [], dur: 0, bpm: 120, lo: 48, hi: 84,
+  mode: "watch", hand: "both", rate: 1, playing: false, pos: 0, pos0: 0, start: 0,
+  gate: -1, hits: new Set(), errors: 0, next: 0, out: null, timer: 0, sparks: [], started: new Set(),
+  imported: [], cv: $("vid-canvas"), g: $("vid-canvas").getContext("2d"), down: new Map(),
+};
+function vidSources(){
+  return [...SONGS.map(s => ({ id: "song:" + s.id, title: s.title, group: s.hands === 2 ? "Kahden käden kappaleet" : "Yhden käden kappaleet",
+                                load: () => ({ events: stepsToEvents(s.steps, s.bpm), bpm: s.bpm }) })),
+          ...vid.imported];
+}
+function renderVidSources(){
+  const groups = {};
+  for (const s of vidSources()) (groups[s.group] ||= []).push(s);
+  $("vid-src").innerHTML = Object.entries(groups).map(([g, list]) =>
+    `<optgroup label="${g}">${list.map(s => `<option value="${s.id}"${vid.src && vid.src.id === s.id ? " selected" : ""}>${s.title.replace(/[<&]/g, "")}</option>`).join("")}</optgroup>`).join("");
+}
+function loadVid(id){
+  const s = vidSources().find(x => x.id === id) || vidSources()[0];
+  vidStop();
+  const { events, bpm } = s.load();
+  vid.src = s; vid.title = s.title; vid.bpm = bpm || 120;
+  vid.bars = eventsToBars(events); vid.onsets = onsetsOf(vid.bars);
+  vid.dur = vid.bars.length ? Math.max(...vid.bars.map(b => b.end)) : 0;
+  const lo = Math.min(...vid.bars.map(b => b.midi)), hi = Math.max(...vid.bars.map(b => b.midi));
+  vid.lo = Math.min(Math.floor(lo / 12) * 12, 60 - 12); vid.hi = Math.max(Math.floor(hi / 12) * 12 + 11, 60 + 11); // whole octaves, at least C3–H4
+  store.set("vidsrc", s.id);
+  vidSeek(0);
+  renderVidSources(); renderVidBar();
+}
+// the onsets you play yourself in play-along mode (those with notes for your hand)
+const vidMine = b => vid.hand === "both" || b.hand === vid.hand;
+function nextGate(fromPos){
+  if (vid.mode !== "play") return -1;
+  return vid.onsets.findIndex(o => o.time >= fromPos - 1e-6 && o.bars.some(vidMine));
+}
+function vidClock(){
+  if (!vid.playing || !ctx) return vid.pos;
+  let p = vid.pos0 + (ctx.currentTime - vid.start) * vid.rate;
+  // play-along: the music stops where the next notes for your hand reach the keys, until you play them
+  if (vid.gate >= 0 && p >= vid.onsets[vid.gate].time) p = vid.onsets[vid.gate].time;
+  return Math.min(p, vid.dur + 0.6);
+}
+const vidWaiting = () => vid.playing && vid.gate >= 0 && vid.pos >= vid.onsets[vid.gate].time - 1e-6;
+// the next notes count as played a little before they arrive too
+const vidArmed = () => vid.gate >= 0 && vid.pos >= vid.onsets[vid.gate].time - 0.6 * vid.rate;
+function vidRequired(){ return vid.gate < 0 ? [] : vid.onsets[vid.gate].bars.filter(vidMine); }
+function vidOpenGate(){
+  const o = vid.onsets[vid.gate], now = vidClock();
+  if (vid.playing){ vid.pos0 = Math.max(now, Math.min(o.time, now)); vid.start = ctx.currentTime; }
+  vid.hits.clear();
+  vid.gate = nextGate(o.time + 0.001);
+  renderVidBar();
+}
+// sound: notes are scheduled ~150 ms ahead on the audio clock, so they start exactly with their bars
+function vidPlayAt(m, vel, when, dur){
+  const c = ctx, f = 440 * Math.pow(2, (m - 69) / 12);
+  const g = c.createGain(), lp = c.createBiquadFilter();
+  lp.type = "lowpass"; lp.frequency.setValueAtTime(Math.min(f * 10, 12000), when); lp.frequency.setTargetAtTime(f * 2.5, when, 0.4);
+  g.gain.setValueAtTime(0, when); g.gain.linearRampToValueAtTime(0.3 * vel, when + 0.006);
+  g.gain.setTargetAtTime(0.11 * vel, when + 0.01, 0.25); g.gain.setTargetAtTime(0, when + dur, 0.1);
+  const o1 = c.createOscillator(), o2 = c.createOscillator(), g2 = c.createGain(); g2.gain.value = 0.5;
+  o1.setPeriodicWave(wave); o2.setPeriodicWave(wave); o1.frequency.value = f; o2.frequency.value = f; o2.detune.value = 4;
+  o1.connect(lp); o2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(vid.out);
+  o1.start(when); o2.start(when); o1.stop(when + dur + 0.8); o2.stop(when + dur + 0.8);
+  lastSynth = Math.max(lastSynth, performance.now() + (when - c.currentTime + dur) * 1000);
+}
+function vidSchedule(){
+  if (!vid.playing) return;
+  const now = vidClock(), horizon = now + 0.15 * vid.rate;
+  // accompaniment is silent while the microphone listens, so the app does not hear itself
+  const silentMine = vid.mode === "play", silentAll = vid.mode === "play" && mic.on;
+  const gateT = vid.gate >= 0 ? vid.onsets[vid.gate].time : Infinity;
+  while (vid.next < vid.bars.length){
+    const b = vid.bars[vid.next];
+    if (b.start > horizon || b.start >= gateT - 1e-6) break;   // notes at the waiting point sound when it opens
+    if (b.start >= now - 0.05 && !(silentMine && vidMine(b)) && !silentAll){
+      const when = vid.start + (b.start - vid.pos0) / vid.rate;
+      vidPlayAt(b.midi, Math.min(1, (b.vel || 90) / 110), Math.max(ctx.currentTime, when), (b.end - b.start) / vid.rate);
+    }
+    vid.next++;
+  }
+  if (now >= vid.dur + 0.5){
+    vidStop(); vid.pos = vid.dur;
+    setVidStatus(vid.mode === "play" ? `Valmis! ${vid.errors ? vid.errors + " väärää kosketinta." : "Ei yhtään väärää kosketinta."}` : "Valmis.", "ok");
+  }
+}
+function vidPlay(){
+  audio(); if (!ctx) return;
+  if (vid.pos >= vid.dur) vidSeek(0);
+  vid.out = ctx.createGain(); vid.out.gain.value = 1; vid.out.connect(master);
+  vid.pos0 = vid.pos; vid.start = ctx.currentTime + 0.05; vid.playing = true;
+  vid.next = vid.bars.findIndex(b => b.start >= vid.pos - 1e-6); if (vid.next < 0) vid.next = vid.bars.length;
+  vid.timer = setInterval(vidSchedule, 25); vidSchedule();
+  setVidStatus(vid.mode === "play" ? "Soita, kun palkit osuvat koskettimiin." : "", "");
+  renderVidBar();
+}
+function vidStop(){
+  if (vid.playing) vid.pos = vidClock();
+  vid.playing = false; clearInterval(vid.timer);
+  // dropping the output node silences everything scheduled or still ringing
+  if (vid.out){ try { vid.out.gain.setTargetAtTime(0, ctx.currentTime, 0.03); const o = vid.out; setTimeout(() => o.disconnect(), 200); } catch (e) {} vid.out = null; }
+  renderVidBar();
+}
+function vidSeek(p){
+  const was = vid.playing; if (was) vidStop();
+  vid.pos = Math.max(0, Math.min(p, vid.dur)); vid.hits.clear(); vid.sparks = []; vid.started.clear();
+  vid.gate = nextGate(vid.pos);
+  if (was) vidPlay(); else renderVidBar();
+}
+function setVidStatus(t, cls){ const s = $("vid-status"); s.textContent = t; s.className = "status " + cls; }
+const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+function renderVidBar(){
+  $("vid-play").textContent = vid.playing ? "❚❚ Tauko" : "▶ Toista";
+  document.querySelectorAll("#vid-mode button").forEach(b => b.setAttribute("aria-pressed", b.dataset.mode === vid.mode));
+  document.querySelectorAll("#vid-hand button").forEach(b => b.setAttribute("aria-pressed", b.dataset.hand === vid.hand));
+  $("vid-hand").hidden = vid.mode !== "play";
+  $("vid-tempo-out").textContent = Math.round(vid.rate * 100) + " %";
+}
+// play-along input: screen keys, computer keys, a MIDI keyboard, or single notes heard by the microphone
+function vidNote(m, fromMic){
+  if (vid.mode !== "play" || !vid.playing || fromMic || !vidArmed()) return;
+  const want = vidRequired();
+  if (want.some(b => b.midi === m)){
+    vid.hits.add(m);
+    if (want.every(b => vid.hits.has(b.midi))){ markPractice(); vidOpenGate(); setVidStatus("Hyvä!", "ok"); }
+  } else if (vidWaiting()){
+    vid.errors++; setVidStatus(`Tuo oli ${nameOf(m)}${octOf(m)}. Soita ${want.map(b => nameOf(b.midi) + octOf(b.midi)).join(" + ")}.`, "bad");
+  }
+}
+function vidHeard(res){
+  if (res.ok){ markPractice(); vidOpenGate(); setVidStatus("Hyvä!", "ok"); }
+  else if (!res.unsure && !res.maybe && vidWaiting()){ vid.errors++; setVidStatus(`Kuulin äänen, mutta en löytänyt säveltä ${vidRequired().filter(b => res.missing.includes(b.midi)).map(b => nameOf(b.midi) + octOf(b.midi)).join(" + ")}.`, "bad"); }
+}
+
+/* drawing: the keyboard, the falling bars and the lit keys, all on one canvas */
+function vidLayout(w, h){
+  const whites = []; for (let m = vid.lo; m <= vid.hi; m++) if (!isBlack(m)) whites.push(m);
+  const kh = Math.min(170, Math.max(90, h * 0.26)), keyY = h - kh, ww = w / whites.length;
+  const x = {}; whites.forEach((m, i) => x[m] = { x: i * ww, w: ww });
+  for (let m = vid.lo; m <= vid.hi; m++) if (isBlack(m)){ const l = x[m - 1]; x[m] = { x: l.x + ww - ww * 0.31, w: ww * 0.62 }; }
+  // about three seconds of music are visible above the keys
+  return { whites, kh, keyY, ww, x, pps: keyY / 3 };
+}
+function vidKeyAt(px, py){
+  const L = vid.layout; if (!L || py < L.keyY) return null;
+  if (py < L.keyY + L.kh * 0.62) for (let m = vid.lo; m <= vid.hi; m++) if (isBlack(m) && px >= L.x[m].x && px < L.x[m].x + L.x[m].w) return m;
+  for (const m of L.whites) if (px >= L.x[m].x && px < L.x[m].x + L.x[m].w) return m;
+  return null;
+}
+function drawVideo(now){
+  if (currentView !== "video") return;
+  const cv = vid.cv, w = cv.clientWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  if (!w || !h) return;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  vid.pos = vidClock();
+  const g = vid.g, L = vid.layout = vidLayout(w, h), pos = vid.pos;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const bg = g.createLinearGradient(0, 0, 0, L.keyY); bg.addColorStop(0, "#07090B"); bg.addColorStop(1, "#141A1E");
+  g.fillStyle = bg; g.fillRect(0, 0, w, h);
+  // octave guides behind the bars (at every C) and beat lines
+  g.fillStyle = "rgba(255,255,255,0.05)";
+  for (const m of L.whites) if (m % 12 === 0) g.fillRect(Math.round(L.x[m].x), 0, 1, L.keyY);
+  const spb = 60 / vid.bpm;
+  for (let b = Math.ceil(pos / spb) * spb; (b - pos) * L.pps < L.keyY; b += spb){
+    const y = Math.round(L.keyY - (b - pos) * L.pps), bar = Math.round(b / spb) % 4 === 0;
+    g.fillStyle = bar ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.04)"; g.fillRect(0, y, w, 1);
+  }
+  const cs = getComputedStyle(document.documentElement);
+  const col = { R: cs.getPropertyValue("--target").trim() || "#E0A21B", L: cs.getPropertyValue("--target-lh").trim() || "#8D5BC8" };
+  const downKeys = new Set(vid.down.values());
+  const lit = new Map(), labels = optLabels.checked, req = vidWaiting() || vidArmed() ? new Set(vidRequired().map(b => b.midi)) : new Set();
+  // bars: white keys' bars first, black keys' on top
+  for (const pass of [false, true]) for (const b of vid.bars){
+    if (isBlack(b.midi) !== pass || b.midi < vid.lo || b.midi > vid.hi) continue;
+    const r = barRect(b, pos, L.keyY, L.pps);
+    if (r.bottom < 0 || r.top > L.keyY) continue;
+    const k = L.x[b.midi], x = k.x + 2, bw = Math.max(3, k.w - 4);
+    const sounding = b.start <= pos + 1e-6 && b.end > pos;
+    if (sounding) lit.set(b.midi, b.hand);
+    if (sounding && !vid.started.has(b)){ vid.started.add(b); spark(k.x + k.w / 2, L.keyY, col[b.hand]); }
+    const top = Math.max(r.top, -20), bottom = Math.min(r.bottom, L.keyY);
+    if (bottom - top < 1) continue;
+    const dim = vid.mode === "play" && !vidMine(b);
+    const grad = g.createLinearGradient(0, top, 0, bottom);
+    grad.addColorStop(0, col[b.hand] + "99"); grad.addColorStop(1, col[b.hand]);
+    g.globalAlpha = dim ? 0.3 : 1;
+    g.shadowColor = col[b.hand]; g.shadowBlur = sounding || req.has(b.midi) && Math.abs(b.start - pos) < 0.7 ? 18 : 6;
+    g.fillStyle = grad; g.beginPath(); g.roundRect(x, top, bw, bottom - top, Math.min(6, bw / 3)); g.fill();
+    g.shadowBlur = 0;
+    if (labels && !dim && bottom - top > 18 && bw > 12){
+      g.fillStyle = b.hand === "L" ? "#fff" : "#2A1D00"; g.font = `700 ${Math.min(13, bw * 0.55)}px system-ui, sans-serif`; g.textAlign = "center";
+      g.fillText(nameOf(b.midi), x + bw / 2, bottom - 6);
+    }
+    g.globalAlpha = 1;
+  }
+  // the keyboard edge glows like the felt strip
+  const glow = g.createLinearGradient(0, L.keyY - 10, 0, L.keyY + 3);
+  glow.addColorStop(0, "rgba(200,40,50,0)"); glow.addColorStop(1, "rgba(200,40,50,0.9)");
+  g.fillStyle = glow; g.fillRect(0, L.keyY - 10, w, 13);
+  // keys: a sounding key lights up in its hand's colour; the keys you have to play next pulse
+  const pulse = 0.5 + 0.5 * Math.sin(now / 160);
+  for (const m of L.whites){
+    const k = L.x[m], hand = lit.get(m) || (downKeys.has(m) ? "R" : null);
+    const kg = g.createLinearGradient(0, L.keyY, 0, h);
+    // a lit key glows in its hand's colour all the way down, a little brighter at the far end
+    if (hand){ kg.addColorStop(0, col[hand]); kg.addColorStop(0.75, col[hand]); kg.addColorStop(1, col[hand] + "CC"); } else { kg.addColorStop(0, "#E9E7E0"); kg.addColorStop(1, "#FBFAF6"); }
+    g.fillStyle = kg; g.fillRect(k.x + 1, L.keyY + 3, k.w - 2, L.kh - 4);
+    if (req.has(m) && !vid.hits.has(m)){ g.strokeStyle = col.R; g.globalAlpha = 0.4 + 0.6 * pulse; g.lineWidth = 3; g.strokeRect(k.x + 2.5, L.keyY + 4.5, k.w - 5, L.kh - 7); g.globalAlpha = 1; }
+    if (labels && k.w > 16){ g.fillStyle = hand ? "#2A1D00" : "#7A8185"; g.font = `700 ${Math.min(12, k.w * 0.4)}px system-ui, sans-serif`; g.textAlign = "center";
+      g.fillText(nameOf(m) + (m % 12 === 0 ? octOf(m) : ""), k.x + k.w / 2, h - 8); }
+  }
+  for (let m = vid.lo; m <= vid.hi; m++) if (isBlack(m)){
+    const k = L.x[m], hand = lit.get(m) || (downKeys.has(m) ? "R" : null), bh = L.kh * 0.62;
+    g.fillStyle = hand ? col[hand] : "#17191B"; g.beginPath(); g.roundRect(k.x, L.keyY + 3, k.w, bh, [0, 0, 3, 3]); g.fill();
+    if (req.has(m) && !vid.hits.has(m)){ g.strokeStyle = col.R; g.globalAlpha = 0.4 + 0.6 * pulse; g.lineWidth = 2.5; g.strokeRect(k.x + 1.5, L.keyY + 4.5, k.w - 3, bh - 3); g.globalAlpha = 1; }
+  }
+  // sparks where a note starts
+  if (!reduceMotion.matches){
+    const dt = Math.min(0.05, (now - (vid.lastFrame || now)) / 1000);
+    vid.sparks = vid.sparks.filter(s => (s.life -= dt) > 0);
+    for (const s of vid.sparks){ s.x += s.vx * dt; s.y += s.vy * dt; s.vy += 260 * dt; g.globalAlpha = s.life / 0.6; g.fillStyle = s.c; g.fillRect(s.x, s.y, 2.5, 2.5); }
+    g.globalAlpha = 1;
+  }
+  vid.lastFrame = now;
+  // time and progress
+  $("vid-time").textContent = `${fmtTime(Math.min(pos, vid.dur))} / ${fmtTime(vid.dur)}`;
+  if (document.activeElement !== $("vid-seek")) $("vid-seek").value = vid.dur ? Math.round(Math.min(pos, vid.dur) / vid.dur * 1000) : 0;
+}
+function spark(x, y, c){
+  if (reduceMotion.matches) return;
+  for (let i = 0; i < 8; i++) vid.sparks.push({ x, y, vx: (Math.random() - 0.5) * 160, vy: -60 - Math.random() * 140, life: 0.35 + Math.random() * 0.25, c });
+}
+requestAnimationFrame(function videoLoop(now){ drawVideo(now); requestAnimationFrame(videoLoop); });
+
+// controls
+$("vid-src").onchange = () => loadVid($("vid-src").value);
+$("vid-play").onclick = () => vid.playing ? vidStop() : vidPlay();
+$("vid-restart").onclick = () => { vid.errors = 0; vidSeek(0); };
+$("vid-mode").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; vid.mode = b.dataset.mode; vid.errors = 0; setVidStatus(vid.mode === "play" ? "Paina Toista. Musiikki pysähtyy, kun palkit osuvat koskettimiin, ja jatkuu, kun soitat ne." : "", ""); vidSeek(vid.pos); });
+$("vid-hand").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; vid.hand = b.dataset.hand; vidSeek(vid.pos); });
+$("vid-tempo").oninput = () => {
+  const r = $("vid-tempo").value / 100;
+  if (vid.playing){ vid.pos0 = vidClock(); vid.start = ctx.currentTime; }
+  vid.rate = r; store.set("vidrate", r); renderVidBar();
+};
+$("vid-seek").oninput = () => vidSeek($("vid-seek").value / 1000 * vid.dur);
+$("vid-file").onchange = async () => {
+  const f = $("vid-file").files[0]; if (!f) return;
+  try{
+    const m = parseMidi(await f.arrayBuffer());
+    if (!m.events.length) throw new Error("Tiedostossa ei ole nuotteja.");
+    const id = "midi:" + Date.now();
+    vid.imported.push({ id, title: m.title || f.name.replace(/\.midi?$/i, ""), group: "Tuodut MIDI-tiedostot", load: () => ({ events: m.events, bpm: m.bpm }) });
+    loadVid(id); setVidStatus(`Tuotiin ${f.name}: ${eventsToBars(m.events).length} nuottia.`, "ok");
+  }catch(err){ setVidStatus(`MIDI-tiedostoa ei voitu lukea: ${err.message}`, "bad"); }
+  $("vid-file").value = "";
+};
+$("vid-full").onclick = () => { const el = $("vid-stage"); (document.fullscreenElement ? document.exitFullscreen() : el.requestFullscreen?.())?.catch?.(() => {}); };
+// play the drawn keys with a finger or the mouse
+vid.cv.addEventListener("pointerdown", e => {
+  const r = vid.cv.getBoundingClientRect(), m = vidKeyAt(e.clientX - r.left, e.clientY - r.top); if (m == null) return;
+  e.preventDefault(); vid.down.set(e.pointerId, m); noteOn(m, 0.8); onNote(m, false);
+});
+const vidUp = e => { const m = vid.down.get(e.pointerId); if (m == null) return; vid.down.delete(e.pointerId); noteOff(m); };
+vid.cv.addEventListener("pointerup", vidUp); vid.cv.addEventListener("pointercancel", vidUp); vid.cv.addEventListener("pointerleave", vidUp);
+vid.rate = store.get("vidrate", 1); $("vid-tempo").value = Math.round(vid.rate * 100);
+// test hook: only with ?debug in the address
+if (location.search.includes("debug")) window.__vid = { vid, vidClock, vidRequired, vidWaiting, barRect };
+
 /* ---------- quiz ---------- */
 const quiz = { target: 64, score: 0, streak: 0, best: pstore.get("qbest", 0), misses: 0, locked: false };
 const QRANGE = { treble: [60, 84], bass: [43, 60], both: [43, 84] };
@@ -1427,6 +1836,7 @@ function activePractice(){
   if (currentView === "songs" && songState.song.hands === 2 && songState.pos < songState.song.steps.length)
     return { want: req(songState.song.steps[songState.pos]).map(n => n.midi), heard: songHeard };
   if (currentView === "chords") return { want: prog.p.steps[prog.pos].notes.map(n => n.midi), heard: progHeard };
+  if (currentView === "video" && vid.mode === "play" && vid.playing && vidArmed()) return { want: vidRequired().map(b => b.midi), heard: vidHeard };
   return null;
 }
 function micLoop(){
@@ -1463,29 +1873,32 @@ micSens.oninput = () => { store.set("sens", +micSens.value); mic.det?.setSensiti
 
 /* ---------- routing ---------- */
 let currentView = "songs";
-const VIEWS = ["songs","quiz","free","chords"];
+const VIEWS = ["songs","quiz","free","chords","video"];
 function onNote(m, fromMic){
   if (currentView === "songs") songNote(m, fromMic);
   else if (currentView === "quiz") quizNote(m);
   else if (currentView === "chords") progNote(m, fromMic);
+  else if (currentView === "video") vidNote(m, fromMic);
   else { freeNotes.push({ midi: m }); if (freeNotes.length > 8) freeNotes.shift(); renderFree(); }
 }
 function show(view){
   if (view !== "songs") stopListen();
   if (view !== "chords") stopProgListen();
+  if (view !== "video") vidStop();
+  $("keys").hidden = view === "video"; // the video mode draws its own keyboard
   currentView = view; mic.chord?.reset();
   document.querySelectorAll(".tabs button").forEach(b => b.setAttribute("aria-selected", b.dataset.view === view));
   for (const v of VIEWS) $("view-"+v).hidden = v !== view;
-  if (view === "songs") songKeyboard(); else if (view === "quiz") quizKeyboard(); else if (view === "chords") progKeyboard(); else buildKeyboard(48, 84);
+  if (view === "songs") songKeyboard(); else if (view === "quiz") quizKeyboard(); else if (view === "chords") progKeyboard(); else if (view !== "video") buildKeyboard(48, 84);
   clearTargets(); if (view === "quiz" || view === "free") reveal([60]);
-  if (view === "songs") renderSong(); else if (view === "quiz") renderQuiz(); else if (view === "chords") renderProg(); else renderFree();
+  if (view === "songs") renderSong(); else if (view === "quiz") renderQuiz(); else if (view === "chords") renderProg(); else if (view === "video"){ if (!vid.src) loadVid(store.get("vidsrc", "song:elise")); } else renderFree();
   if (location.hash.slice(1) !== view) history.replaceState(null, "", "#"+view);
 }
 document.querySelector(".tabs").addEventListener("click", e => { const b = e.target.closest("button"); if (b) show(b.dataset.view); });
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (VIEWS.includes(h)) show(h); });
 
 songState.song = SONGS.find(s => s.id === store.get("song", "ukko")) || SONGS[1];
-renderPlayer(); renderPracticeBar(); renderSongList(); renderProgList(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
+renderPlayer(); renderPracticeBar(); renderSongList(); renderProgList(); renderVidSources(); renderVidBar(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
 const h0 = location.hash.slice(1); show(VIEWS.includes(h0) ? h0 : "songs");
 // offline use and "Add to Home Screen" (only on the published site; other hosts, such as the Claude page, don't allow it)
 if ("serviceWorker" in navigator && location.hostname.endsWith("github.io")) navigator.serviceWorker.register("sw.js").catch(() => {});

@@ -21,6 +21,42 @@ for (const p of lib.PROGRESSIONS){
     "sointukierto " + p.id, `${p.bars.length} tahtia, ${p.steps.length} askelta`);
 }
 
+/* 1b. Video mode: MIDI-like events, bars, timing and the MIDI file reader */
+console.log("\n— Videotila");
+{
+  const vlq = n => { const out = [n & 0x7f]; while (n >>= 7) out.unshift((n & 0x7f) | 0x80); return out; };
+  const smf = (tracks, tpq) => {
+    const b = [..."MThd"].map(c => c.charCodeAt(0)).concat([0,0,0,6, 0,1, 0,tracks.length, tpq >> 8, tpq & 255]);
+    for (const tr of tracks){
+      const body = []; let last = 0;
+      for (const e of tr.sort((x, y) => x.tick - y.tick)){ body.push(...vlq(e.tick - last), ...e.bytes); last = e.tick; }
+      body.push(0, 0xff, 0x2f, 0);
+      b.push(...[..."MTrk"].map(c => c.charCodeAt(0)), (body.length >>> 24) & 255, (body.length >> 16) & 255, (body.length >> 8) & 255, body.length & 255, ...body);
+    }
+    return new Uint8Array(b);
+  };
+  // tempo 120, slowing to 60 at beat 4; right hand C4 E4 G4 C5 (running status, note-on velocity 0 as note-off), then E5;
+  // left hand C3; a drum hit on channel 10 that must be ignored
+  const t0 = [{ tick: 0, bytes: [0xff,0x03,5,84,101,115,116,105] }, { tick: 0, bytes: [0xff,0x51,3,0x07,0xa1,0x20] }, { tick: 1920, bytes: [0xff,0x51,3,0x0f,0x42,0x40] }];
+  const t1 = []; [60,64,67,72].forEach((m, i) => t1.push({ tick: i*480, bytes: [0x90,m,100] }, { tick: (i+1)*480 - 20, bytes: [0x80,m,0] }));
+  t1.push({ tick: 2400, bytes: [0x90,76,80] }, { tick: 2880, bytes: [0x90,76,0] });
+  const t2 = [{ tick: 0, bytes: [0x91,48,90] }, { tick: 1920, bytes: [0x81,48,0] }, { tick: 0, bytes: [0x99,36,100] }, { tick: 480, bytes: [0x89,36,0] }];
+  const mid = lib.parseMidi(smf([t0, t1, t2], 480));
+  const bars = lib.eventsToBars(mid.events).map(b => [nm(b.midi), b.hand, +b.start.toFixed(3), +b.end.toFixed(3)]);
+  const want = [["C3","L",0,2],["C4","R",0,0.479],["E4","R",0.5,0.979],["G4","R",1,1.479],["C5","R",1.5,1.979],["E5","R",3,4]];
+  check(JSON.stringify(bars) === JSON.stringify(want) && mid.title === "Testi" && mid.bpm === 120, "MIDI-tiedoston luku", "sävelet, kädet, tempovaihdos, rumpukanava ohitettu");
+  const r0 = lib.barRect({ start: 2, end: 2.5 }, 2, 400, 120), r1 = lib.barRect({ start: 2, end: 2.5 }, 1, 400, 120);
+  check(r0.bottom === 400 && r1.bottom === 280 && r1.top === 220, "palkki osuu koskettimeen täsmälleen alkuhetkellä");
+  // every song becomes one bar per note, in time order, and repeated notes stay separate bars
+  for (const s of Object.values(songs)){
+    const steps = stepsOf(s.id), bpm = s.bpm;
+    const vb = lib.eventsToBars(lib.stepsToEvents(steps, bpm)), notes = steps.reduce((a, st) => a + st.notes.length, 0);
+    const sorted = vb.every((b, i) => i === 0 || b.start >= vb[i-1].start), separate = vb.every(b => b.end > b.start);
+    if (vb.length !== notes || !sorted || !separate) check(false, "videotila · " + s.id, `${vb.length}/${notes} palkkia`);
+  }
+  check(true, "videotila · jokaisen kappaleen jokainen nuotti on oma palkkinsa");
+}
+
 /* 2. Single notes (one-hand songs, note reading) */
 console.log("\n— Yksittäiset sävelet");
 const single = (label, seq, opt) => {
