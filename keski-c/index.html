@@ -1311,6 +1311,12 @@ const vid = {
 function vidSources(){
   return [...SONGS.map(s => ({ id: "song:" + s.id, title: s.title, group: s.hands === 2 ? "Kahden käden kappaleet" : "Yhden käden kappaleet",
                                 load: () => ({ events: stepsToEvents(s.steps, s.bpm), bpm: s.bpm }) })),
+          ...PROGRESSIONS.map(p => {
+            const barBeats = p.pattern.split(" ").length * p.beat, spb = 60 / p.bpm;
+            return { id: "prog:" + p.id, title: p.title + " · sointukierto", group: "Sointukierrot (toistuvat)",
+              load: () => ({ events: stepsToEvents(p.steps, p.bpm), bpm: p.bpm, loop: p.bars.length * barBeats * spb,
+                             chords: p.bars.map((c, i) => ({ time: i * barBeats * spb, chord: c })) }) };
+          }),
           ...vid.imported];
 }
 function renderVidSources(){
@@ -1322,15 +1328,37 @@ function renderVidSources(){
 function loadVid(id){
   const s = vidSources().find(x => x.id === id) || vidSources()[0];
   vidStop();
-  const { events, bpm } = s.load();
-  vid.src = s; vid.title = s.title; vid.bpm = bpm || 120;
-  vid.bars = eventsToBars(events); vid.onsets = onsetsOf(vid.bars);
-  vid.dur = vid.bars.length ? Math.max(...vid.bars.map(b => b.end)) : 0;
-  const lo = Math.min(...vid.bars.map(b => b.midi)), hi = Math.max(...vid.bars.map(b => b.midi));
+  const { events, bpm, loop = 0, chords = null } = s.load();
+  vid.src = s; vid.title = s.title; vid.bpm = bpm || 120; vid.loop = loop; vid.chords = chords;
+  vid.round = eventsToBars(events);                     // one round (the whole piece when it doesn't loop)
+  vid.dur = loop ? Infinity : vid.round.length ? Math.max(...vid.round.map(b => b.end)) : 0;
+  const lo = Math.min(...vid.round.map(b => b.midi)), hi = Math.max(...vid.round.map(b => b.midi));
   vid.lo = Math.min(Math.floor(lo / 12) * 12, 60 - 12); vid.hi = Math.max(Math.floor(hi / 12) * 12 + 11, 60 + 11); // whole octaves, at least C3–H4
   store.set("vidsrc", s.id);
   vidSeek(0);
   renderVidSources(); renderVidBar();
+}
+// A looping piece (a chord progression) is generated round by round just ahead of the music, and bars long
+// played are dropped, so it can run for as long as you like without slowing down.
+function vidGenerate(fromPos){
+  if (!vid.loop){ vid.bars = vid.round.slice(); vid.onsets = onsetsOf(vid.bars); return; }
+  vid.genRound = Math.max(0, Math.floor(fromPos / vid.loop));
+  vid.bars = []; vid.onsets = [];
+  vidExtend(fromPos);
+}
+function vidExtend(pos){
+  if (!vid.loop) return;
+  while (vid.genRound * vid.loop < pos + 6){
+    const shift = vid.genRound * vid.loop;
+    const add = vid.round.map(b => ({ ...b, start: b.start + shift, end: b.end + shift }));
+    vid.bars.push(...add); vid.onsets.push(...onsetsOf(add));
+    vid.genRound++;
+  }
+  // drop bars that ended a while ago, keeping the scheduler's and the waiting point's places
+  let cut = 0; while (cut < vid.bars.length && vid.bars[cut].end < pos - 2 && cut < vid.next) cut++;
+  if (cut > 64){ for (const b of vid.bars.slice(0, cut)) vid.started.delete(b); vid.bars.splice(0, cut); vid.next -= cut; }
+  let oc = 0; while (oc < vid.onsets.length && vid.onsets[oc].time < pos - 2 && (vid.gate < 0 || oc < vid.gate)) oc++;
+  if (oc > 32){ vid.onsets.splice(0, oc); if (vid.gate >= 0) vid.gate -= oc; }
 }
 // the onsets you play yourself in play-along mode (those with notes for your hand)
 const vidMine = b => vid.hand === "both" || b.hand === vid.hand;
@@ -1372,6 +1400,7 @@ function vidPlayAt(m, vel, when, dur){
 function vidSchedule(){
   if (!vid.playing) return;
   const now = vidClock(), horizon = now + 0.15 * vid.rate;
+  vidExtend(now);
   // accompaniment is silent while the microphone listens, so the app does not hear itself
   const silentMine = vid.mode === "play", silentAll = vid.mode === "play" && mic.on;
   const gateT = vid.gate >= 0 ? vid.onsets[vid.gate].time : Infinity;
@@ -1391,7 +1420,7 @@ function vidSchedule(){
 }
 function vidPlay(){
   audio(); if (!ctx) return;
-  if (vid.pos >= vid.dur) vidSeek(0);
+  if (!vid.loop && vid.pos >= vid.dur) vidSeek(0);
   vid.out = ctx.createGain(); vid.out.gain.value = 1; vid.out.connect(master);
   vid.pos0 = vid.pos; vid.start = ctx.currentTime + 0.05; vid.playing = true;
   vid.next = vid.bars.findIndex(b => b.start >= vid.pos - 1e-6); if (vid.next < 0) vid.next = vid.bars.length;
@@ -1409,6 +1438,7 @@ function vidStop(){
 function vidSeek(p){
   const was = vid.playing; if (was) vidStop();
   vid.pos = Math.max(0, Math.min(p, vid.dur)); vid.hits.clear(); vid.sparks = []; vid.started.clear();
+  vid.next = 0; vidGenerate(vid.pos); vid.lastRound = vid.loop ? Math.floor(vid.pos / vid.loop) : 0;
   vid.gate = nextGate(vid.pos);
   if (was) vidPlay(); else renderVidBar();
 }
@@ -1433,7 +1463,7 @@ function vidNote(m, fromMic){
   }
 }
 function vidHeard(res){
-  if (res.ok){ markPractice(); vidOpenGate(); setVidStatus("Hyvä!", "ok"); }
+  if (res.ok || (vid.loop && res.unsure)){ markPractice(); vidOpenGate(); setVidStatus("Hyvä!", "ok"); }
   else if (!res.unsure && !res.maybe && vidWaiting()){ vid.errors++; setVidStatus(`Kuulin äänen, mutta en löytänyt säveltä ${vidRequired().filter(b => res.missing.includes(b.midi)).map(b => nameOf(b.midi) + octOf(b.midi)).join(" + ")}.`, "bad"); }
 }
 
@@ -1457,7 +1487,7 @@ function drawVideo(now){
   const cv = vid.cv, w = cv.clientWidth, h = cv.clientHeight, dpr = window.devicePixelRatio || 1;
   if (!w || !h) return;
   if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)){ cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
-  vid.pos = vidClock();
+  vid.pos = vidClock(); vidExtend(vid.pos);
   const g = vid.g, L = vid.layout = vidLayout(w, h), pos = vid.pos;
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const bg = g.createLinearGradient(0, 0, 0, L.keyY); bg.addColorStop(0, "#07090B"); bg.addColorStop(1, "#141A1E");
@@ -1527,9 +1557,26 @@ function drawVideo(now){
     g.globalAlpha = 1;
   }
   vid.lastFrame = now;
-  // time and progress
-  $("vid-time").textContent = `${fmtTime(Math.min(pos, vid.dur))} / ${fmtTime(vid.dur)}`;
-  if (document.activeElement !== $("vid-seek")) $("vid-seek").value = vid.dur ? Math.round(Math.min(pos, vid.dur) / vid.dur * 1000) : 0;
+  // chord progression: the chord now and the next one, large in the corner, and the round
+  if (vid.chords && vid.loop){
+    const inRound = ((pos % vid.loop) + vid.loop) % vid.loop;
+    let ci = vid.chords.length - 1; while (ci > 0 && vid.chords[ci].time > inRound + 1e-6) ci--;
+    let ni = (ci + 1) % vid.chords.length; while (ni !== ci && vid.chords[ni].chord === vid.chords[ci].chord) ni = (ni + 1) % vid.chords.length;
+    // a dark plate keeps the chord name readable over the falling bars
+    g.fillStyle = "rgba(7,9,11,0.78)"; g.beginPath(); g.roundRect(8, 10, Math.min(150, w * 0.32), 76, 10); g.fill();
+    g.textAlign = "left"; g.fillStyle = "#F4F1EA"; g.font = `400 ${Math.min(44, w * 0.08)}px "Young Serif", Georgia, serif`;
+    g.fillText(vid.chords[ci].chord, 18, 52);
+    g.fillStyle = "rgba(244,241,234,0.55)"; g.font = `700 ${Math.min(15, w * 0.035)}px system-ui, sans-serif`;
+    g.fillText(`seuraava: ${vid.chords[ni].chord}`, 20, 76);
+    const round = Math.floor(pos / vid.loop) + 1;
+    g.textAlign = "right"; g.fillText(`kierros ${round}`, w - 18, 30);
+    if (round !== vid.lastRound + 1 && vid.mode === "play" && round > 1 && vid.playing) setVidStatus(`Kierros ${round - 1} soitettu! Jatka niin kauan kuin haluat.`, "ok");
+    vid.lastRound = round - 1;
+  }
+  // time and progress (within the round for a progression)
+  const span = vid.loop || vid.dur, at = vid.loop ? ((pos % vid.loop) + vid.loop) % vid.loop : Math.min(pos, vid.dur);
+  $("vid-time").textContent = `${fmtTime(at)} / ${fmtTime(span)}`;
+  if (document.activeElement !== $("vid-seek")) $("vid-seek").value = span ? Math.round(at / span * 1000) : 0;
 }
 function spark(x, y, c){
   if (reduceMotion.matches) return;
@@ -1548,7 +1595,7 @@ $("vid-tempo").oninput = () => {
   if (vid.playing){ vid.pos0 = vidClock(); vid.start = ctx.currentTime; }
   vid.rate = r; store.set("vidrate", r); renderVidBar();
 };
-$("vid-seek").oninput = () => vidSeek($("vid-seek").value / 1000 * vid.dur);
+$("vid-seek").oninput = () => vidSeek(vid.loop ? Math.floor(vid.pos / vid.loop) * vid.loop + $("vid-seek").value / 1000 * vid.loop : $("vid-seek").value / 1000 * vid.dur);
 $("vid-file").onchange = async () => {
   const f = $("vid-file").files[0]; if (!f) return;
   try{
@@ -1816,7 +1863,7 @@ async function startMic(){
   mic.an2 = c.createAnalyser(); mic.an2.fftSize = 4096; mic.an2.smoothingTimeConstant = 0; mic.src.connect(mic.an2);
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
     () => activePractice()?.want ?? null,
-    res => activePractice()?.heard(res), () => currentView === "chords" ? FLUX_CHORDS : FLUX_SONG);
+    res => activePractice()?.heard(res), () => currentView === "chords" || (currentView === "video" && vid.loop) ? FLUX_CHORDS : FLUX_SONG);
   mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
