@@ -1858,7 +1858,31 @@ const mic = { on: false, stream: null, src: null, an: null, an2: null, chord: nu
 const micBtn = $("mic-btn"), micMsg = $("mic-msg"), micSens = $("mic-sens");
 micSens.value = store.get("sens", 6);
 function micMessage(html){ micMsg.innerHTML = html || ""; micMsg.hidden = !html; }
+// The microphone stays on for the whole visit. The app remembers that you want it on and switches it on by itself
+// the next time (with no question when the browser has already granted the permission). If the browser cuts it off
+// (another app took the sound, the screen locked), it reconnects at your next tap instead of asking you to start it.
+let micStarting = false, micRearmed = false;
+async function micPermission(){ try { return (await navigator.permissions.query({ name: "microphone" })).state; } catch (e){ return "unknown"; } }
+function micOnNextTap(){
+  if (micRearmed) return; micRearmed = true;
+  const go = () => { removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); micRearmed = false; if (!mic.on && store.get("micOn", false)) startMic(); };
+  addEventListener("pointerdown", go, true); addEventListener("keydown", go, true);
+}
+function micLost(){
+  if (!mic.on) return;
+  cancelAnimationFrame(mic.raf);
+  try{ mic.src?.disconnect(); }catch(e){}
+  mic.on = false; mic.chord = null; micBtn.setAttribute("aria-pressed", "false"); $("mic-label").textContent = "Kuuntele pianoa";
+  $("mic-live").hidden = true; renderPracticeBar();
+  micMessage("Selain katkaisi mikrofonin. Se yhdistyy uudelleen, kun kosketat näyttöä.");
+  micOnNextTap();
+}
 async function startMic(){
+  if (micStarting || mic.on) return;
+  micStarting = true;
+  try { await startMicNow(); } finally { micStarting = false; }
+}
+async function startMicNow(){
   micMessage("");
   if (!navigator.mediaDevices?.getUserMedia){
     micMessage(`Tämä selain ei anna mikrofonia käyttöön. Avaa sovellus osoitteessa <a href="${ON_PAGES}" target="_blank" rel="noopener">${ON_PAGES}</a>.`); return;
@@ -1874,7 +1898,15 @@ async function startMic(){
     return;
   }
   const c = audio();
+  store.set("micOn", true);
+  for (const tr of stream.getAudioTracks()) tr.addEventListener("ended", micLost);
   mic.stream = stream; mic.src = c.createMediaStreamSource(stream);
+  if (mt.proc) mic.src.connect(mt.proc);   // the microphone test keeps recording after a reconnect
+  // Safari asks again on every visit unless the site is allowed for good: say once how to do that
+  if (/iPhone|iPad|Macintosh/.test(navigator.userAgent) && /Safari/.test(navigator.userAgent) && !/Chrome|CriOS|FxiOS/.test(navigator.userAgent) && !store.get("micHint", false)){
+    store.set("micHint", true);
+    micMessage("Vinkki: jotta Safari ei kysy mikrofonin lupaa joka käynnillä, napauta osoiterivin <b>aA</b>-painiketta → <b>Verkkosivuston asetukset</b> → <b>Mikrofoni</b> → <b>Salli</b>.");
+  }
   mic.an = c.createAnalyser(); mic.an.fftSize = 2048; mic.src.connect(mic.an);
   mic.an2 = c.createAnalyser(); mic.an2.fftSize = 4096; mic.an2.smoothingTimeConstant = 0; mic.src.connect(mic.an2);
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
@@ -1887,6 +1919,7 @@ async function startMic(){
   micLoop();
 }
 function stopMic(){
+  store.set("micOn", false); // you turned it off: don't switch it on by itself next time
   cancelAnimationFrame(mic.raf);
   mic.stream?.getTracks().forEach(tr => tr.stop());
   try{ mic.src?.disconnect(); }catch(e){}
@@ -2081,6 +2114,18 @@ window.addEventListener("hashchange", () => { const h = location.hash.slice(1); 
 songState.song = SONGS.find(s => s.id === store.get("song", "ukko")) || SONGS[1];
 renderPlayer(); renderPracticeBar(); renderSongList(); renderProgList(); renderVidSources(); renderVidBar(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
 const h0 = location.hash.slice(1); show(VIEWS.includes(h0) ? h0 : "songs");
+// the microphone was on last time: switch it on again, at once when the permission is already granted,
+// otherwise at the first tap (one question per visit at most)
+if (store.get("micOn", false)){
+  micPermission().then(st => {
+    if (st === "granted"){ startMic(); addEventListener("pointerdown", () => ctx?.resume?.(), { once: true, capture: true }); }
+    else if (st !== "denied") micOnNextTap();
+  });
+}
+// a page that comes back from the background re-checks the microphone
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && mic.on && mic.stream && mic.stream.getAudioTracks().every(t => t.readyState === "ended")) micLost();
+});
 // offline use and "Add to Home Screen" (only on the published site; other hosts, such as the Claude page, don't allow it)
 if ("serviceWorker" in navigator && location.hostname.endsWith("github.io")) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
