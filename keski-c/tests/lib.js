@@ -19,7 +19,7 @@ const lib = new Function(
   between("// CHORD-START", "// CHORD-END") +
   between("// PROG-START", "// PROG-END") +
   between("// MIDI-START", "// MIDI-END") +
-  ";return { parseTok, buildSteps, createDetector, chordCheck, createChordListener, FLUX_SONG, FLUX_CHORDS, CHORDS, PROGRESSIONS, stepsToEvents, eventsToBars, onsetsOf, barRect, parseMidi };"
+  ";return { parseTok, buildSteps, createDetector, chordCheck, createChordListener, FLUX_SONG, FLUX_CHORDS, CHORDS, PROGRESSIONS, stepsToEvents, eventsToBars, onsetsOf, barRect, parseMidi, TUNE, measureFundamental };"
 )();
 
 // Song data straight from the SONGS list
@@ -58,7 +58,8 @@ function fftDb(x, N){
 }
 
 // Simulated piano. steps: [{ notes:[{midi,dur,hand}], len }]. swap: { step, from, to } plays a wrong note (to = null: leave it out)
-function render(steps, { sr = 48000, bpm = 72, agc = false, thump = false, noise = 0.002, swap = null } = {}){
+// detune: the whole piano off standard pitch, in cents; inharm: how much the string partials stretch (bigger on small pianos)
+function render(steps, { sr = 48000, bpm = 72, agc = false, thump = false, noise = 0.002, swap = null, detune = 0, inharm = 0.0004 } = {}){
   const beat = 60/bpm, lead = 0.5;
   const n = Math.floor((lead + steps.reduce((a, s) => a + s.len, 0)*beat + 1.5)*sr);
   const x = new Float32Array(n);
@@ -68,10 +69,10 @@ function render(steps, { sr = 48000, bpm = 72, agc = false, thump = false, noise
     for (const note of st.notes){
       let m = note.midi;
       if (swap && swap.step === si && swap.from === m){ if (swap.to == null) continue; m = swap.to; }
-      const f = 440*2**((m - 69)/12), i0 = Math.floor(T*sr), dur = note.dur*beat, a = 0.25*(note.hand === "L" ? 0.8 : 1);
+      const f = 440*2**((m - 69)/12 + detune/1200), i0 = Math.floor(T*sr), dur = note.dur*beat, a = 0.25*(note.hand === "L" ? 0.8 : 1);
       const i1 = Math.min(n, i0 + Math.floor((dur + 0.3)*sr));
       for (let k = 1; k <= 12; k++){
-        const fk = f*k*Math.sqrt(1 + 0.0004*k*k); if (fk > sr/2.2) break;
+        const fk = f*k*Math.sqrt(1 + inharm*k*k); if (fk > sr/2.2) break;
         const ak = a/Math.pow(k, 1.1)*(m < 52 && k === 1 ? 0.35 : 1), dec = 0.8 + k*0.5;
         for (let i = i0; i < i1; i++){
           const t = (i - i0)/sr; let e = Math.min(1, t/0.004)*Math.exp(-dec*t);
@@ -93,6 +94,8 @@ function render(steps, { sr = 48000, bpm = 72, agc = false, thump = false, noise
 function listen(steps, opt = {}, mode = "song"){
   const sr = opt.sr || 48000, F = 4096, x = render(steps, { ...opt, sr });
   const det = lib.createDetector(sr), hop = Math.round(sr/60);
+  // tuned: the app has already learned the piano's tuning (as it does from the notes it hears)
+  lib.TUNE.cents = opt.tuned ? (opt.detune || 0) : 0; det.setTuning(lib.TUNE.cents);
   let pos = 0; const errs = [];
   const L = lib.createChordListener(sr/F, () => pos < steps.length ? steps[pos].notes.map(n => n.midi) : null, res => {
     if (res.ok || (mode === "chords" && res.unsure)){ pos++; return; }

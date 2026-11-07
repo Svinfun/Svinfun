@@ -212,6 +212,13 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 .vid-transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;background:#101315}
 #vid-seek{flex:1 1 160px;accent-color:#E0A21B}
 .vid-time{color:#AEB6B8;font-variant-numeric:tabular-nums;font-size:.85rem}
+.tunecard{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)}
+.tunecard h3{margin:0 0 6px;font-size:1rem}
+.tunecard p{margin:0 0 10px;max-width:65ch}
+.tune-notes{font-size:.85rem;color:var(--muted);line-height:2}
+.tune-chip{display:inline-block;padding:0 6px;border-radius:6px;border:1px solid var(--rule);font-variant-numeric:tabular-nums;color:var(--ink)}
+.tune-chip.warn{border-color:var(--target)}
+.tune-chip.bad{border-color:var(--bad);color:var(--bad)}
 .mictest{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)}
 .mt-step{margin:0 0 10px;max-width:65ch;font-size:1.05rem}
 .mt-report{white-space:pre-wrap;word-break:break-word;font-size:.78rem;background:var(--bg);border:1px solid var(--rule);border-radius:8px;padding:10px;max-height:320px;overflow:auto;user-select:text}
@@ -317,6 +324,12 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
     <div class="quiz" style="margin-top:12px">
       <div class="bigname" id="free-name">–</div>
       <div class="staffbox"><svg class="staff" id="free-staff" viewBox="0 0 640 130"></svg></div>
+    </div>
+    <div class="tunecard">
+      <h3>Pianon vire</h3>
+      <p id="tune-now"></p>
+      <div class="row"><button class="btn primary" id="tune-check">Tarkista vire</button><button class="btn" id="tune-reset">Unohda opittu vire</button></div>
+      <p class="tune-notes" id="tune-notes"></p>
     </div>
     <div class="mictest">
       <button class="btn primary" id="mt-open">Mikrofonitesti oikealla pianolla</button>
@@ -1704,7 +1717,7 @@ function createDetector(sr){
   const W = 1024, minTau = Math.floor(sr/2200), maxTau = Math.floor(sr/75); // ~75 Hz (D2) .. 2200 Hz (C7)
   const N = W + maxTau;
   const d = new Float32Array(maxTau+2), cm = new Float32Array(maxTau+2);
-  let floor = 0.002, recent = [0,0,0], hfFloor = 1e-4, recentHf = [0,0,0], sounding = null, armed = null, cand = null, lastOnset = -1, sens = 0.55;
+  let floor = 0.002, recent = [0,0,0], hfFloor = 1e-4, recentHf = [0,0,0], sounding = null, armed = null, cand = null, lastOnset = -1, sens = 0.55, tune = 0;
   function yin(x, off){
     for (let tau=1; tau<=maxTau+1; tau++){
       let s = 0; for (let j=0; j<W; j++){ const v = x[off+j] - x[off+j+tau]; s += v*v; } d[tau] = s;
@@ -1723,6 +1736,8 @@ function createDetector(sr){
   return {
     size: N,
     setSensitivity(v){ sens = Math.max(0, Math.min(1, v)); },
+    // the piano's own tuning in cents from A = 440 Hz: notes are named against it
+    setTuning(c){ tune = c || 0; },
     reset(){ sounding = null; armed = null; cand = null; },
     // x: newest samples at the end. t: time in seconds. Returns onset and note on/off events.
     process(x, t){
@@ -1738,8 +1753,8 @@ function createDetector(sr){
       const gate = Math.max(floor*2.5, 0.03*Math.pow(0.06, sens));
       const events = [];
       const p = rms > gate ? yin(x, off) : null;
-      let m = null, cents = 0;
-      if (p){ const n = 69 + 12*Math.log2(p.f/440); m = Math.round(n); cents = Math.round((n-m)*100); }
+      let m = null, cents = 0, raw = null;
+      if (p){ raw = 69 + 12*Math.log2(p.f/440); const n = raw - tune/100; m = Math.round(n); cents = Math.round((n-m)*100); }
       // a sharp rise in level = a new key strike (also catches the same key played again)
       // compared with the loudest of the last 3 frames, so beating in a ringing string is not a new strike
       const louder = rms > Math.max(...recent)*1.4;
@@ -1760,7 +1775,7 @@ function createDetector(sr){
         if (cand.n >= 4){ events.push({ type:"off", midi: sounding }, { type:"on", midi: m, level: rms }); sounding = m; cand = null; }
       } else cand = null;
       if (sounding != null && rms < gate*0.8){ events.push({ type:"off", midi: sounding }); sounding = null; }
-      return { events, rms, gate, midi: m, cents };
+      return { events, rms, gate, midi: m, cents, raw, q: p ? p.q : 0 };
     }
   };
 }
@@ -1769,12 +1784,32 @@ function createDetector(sr){
 // CHORD-START
 // Two hands: we know which notes should sound, so after a key strike we check, note by note, that the
 // partials of each expected note rose in the spectrum (dB, as AnalyserNode gives) compared with just before it.
+// The piano's tuning in cents from standard pitch (A = 440 Hz), learned from the notes the app hears.
+const TUNE = { cents: 0 };
+// The exact frequency of a note's fundamental (its lowest partial), from a stretch of sound that holds the note:
+// the strength of each frequency within a semitone of the guess is computed directly (Hann window), and the
+// strongest one is refined between the grid points. The fundamental is used because a real string's higher
+// partials run sharp, which pulls a pitch reading up by as much as 20 cents. Low notes, whose fundamental is weak,
+// are measured from the 2nd partial instead.
+function measureFundamental(x, sr, guess){
+  const N = x.length, h = guess < 180 ? 2 : 1, stretch = h === 2 ? Math.sqrt(1 + 0.0004*4) : 1;
+  const w = new Float32Array(N); for (let i = 0; i < N; i++) w[i] = x[i] * (0.5 - 0.5*Math.cos(2*Math.PI*i/(N-1)));
+  const power = f => { let re = 0, im = 0; const k = 2*Math.PI*f/sr; for (let i = 0; i < N; i++){ re += w[i]*Math.cos(k*i); im += w[i]*Math.sin(k*i); } return re*re + im*im; };
+  let best = -1, bestP = -1; const p = [];
+  for (let c = -100; c <= 100; c += 4){ const v = power(guess*h*stretch*Math.pow(2, c/1200)); p.push(v); if (v > bestP){ bestP = v; best = p.length - 1; } }
+  if (best <= 0 || best >= p.length - 1) return null;            // the peak must be inside the searched semitone
+  const a = Math.log(p[best-1]), b = Math.log(p[best]), c = Math.log(p[best+1]), den = a - 2*b + c;
+  const off = den < 0 ? 0.5*(a - c)/den : 0;
+  return guess * Math.pow(2, (-100 + (best + off)*4)/1200);
+}
 function chordCheck(base, now, binHz, midis){
   const lim = Math.min(now.length-4, Math.floor(5000/binHz));
   const v = a => (a > -200 ? a : -200);
   let peak = -200; for (let i=3; i<=lim; i++) if (v(now[i]) > peak) peak = v(now[i]);
-  const partial = (f, h) => Math.round(h*f*Math.sqrt(1 + 0.0002*h*h)/binHz);
-  const freq = m => 440*Math.pow(2,(m-69)/12);
+  // partials of a real string run a little sharp, more on small pianos (inharmonicity); the middle value is used
+  // here and the search window below grows with the partial number to cover the rest
+  const partial = (f, h) => Math.round(h*f*Math.sqrt(1 + 0.0004*h*h)/binHz);
+  const freq = m => 440*Math.pow(2,(m-69)/12 + TUNE.cents/1200);
   const missing = [], ringing = [], maybe = [];
   for (const m of midis){
     // the upper note of an octave pair (C3 + C4) has no partials of its own, so only the lower one is checked
@@ -1789,10 +1824,12 @@ function chordCheck(base, now, binHz, midis){
       const b = partial(f, h); if (b+3 > lim) break;
       if (others.has(b)){ shared++; continue; }
       tried++;
-      // there must be a spectral peak on this partial (within one bin), not just the slope of a neighbouring key's partial
-      let arg = b-1; for (let i=b; i<=b+1; i++) if (v(now[i]) > v(now[arg])) arg = i;
+      // there must be a spectral peak on this partial (within about 20 cents), not just the slope of a neighbouring key's partial
+      const win = Math.max(1, Math.round(h*f*0.012/binHz));
+      if (b - win < 1 || b + win + 1 > now.length) continue;
+      let arg = b-win; for (let i=b-win+1; i<=b+win; i++) if (v(now[i]) > v(now[arg])) arg = i;
       if (!(v(now[arg]) > v(now[arg-1]) && v(now[arg]) > v(now[arg+1]))) continue;
-      const lv = v(now[arg]), lb = Math.max(v(base[b-1]), v(base[b]), v(base[b+1]));
+      const lv = v(now[arg]), lb = Math.max(v(base[arg-1]), v(base[arg]), v(base[arg+1]));
       if (lb > peak - 30) loudBefore++;
       const rise = lb > peak - 30 ? 2 : 6; // a note that was still ringing loudly rises less when struck again
       if (h % 2) oddTried++;
@@ -1912,7 +1949,7 @@ async function startMicNow(){
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
     () => activePractice()?.want ?? null,
     res => activePractice()?.heard(res), () => currentView === "chords" || (currentView === "video" && vid.loop) ? FLUX_CHORDS : FLUX_SONG);
-  mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9);
+  mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9); mic.det.setTuning(TUNE.cents);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
   $("mic-live").hidden = false; $("mic-heard").textContent = "Soita jokin sävel"; stopAccompaniment(); renderPracticeBar();
@@ -1941,6 +1978,7 @@ function micLoop(){
   mic.an.getFloatTimeDomainData(mic.buf);
   const r = mic.det.process(mic.buf, t);
   if (mt.active) mtFrame(t, r);
+  tuningMeasure(t);
   const twoHand = !!activePractice();
   const toPct = v => Math.max(0, Math.min(100, (Math.log10(Math.max(v, 1e-4)) + 4) / 4 * 100));
   $("mic-level").style.width = toPct(r.rms) + "%"; $("mic-gate").style.left = toPct(r.gate) + "%";
@@ -1952,6 +1990,7 @@ function micLoop(){
   if (busy) mic.det.reset();
   else for (const ev of r.events){
     if (ev.type === "on"){
+      tuningHeard(r, ev.midi, t);
       if (twoHand) continue;
       if (mic.held != null) keyEls[mic.held]?.classList.remove("down");
       mic.held = ev.midi; press(ev.midi, 0, true);
@@ -2085,6 +2124,77 @@ $("mt-copy").onclick = async () => {
 $("mt-wav").onclick = mtWav;
 $("mt-again").onclick = () => { $("mt-report").hidden = true; $("mt-done").hidden = true; $("mt-copy").textContent = "Kopioi tulokset"; mtOpen(); };
 
+/* ---------- the piano's tuning ---------- */
+// An acoustic piano is seldom exactly at standard pitch (A = 440 Hz). The app learns how many cents yours is off
+// from the single notes it hears (against the note you were meant to play when it knows it), keeps the median of
+// recent notes, and listens for every note that much higher or lower. Kept on this device.
+const tuning = { samples: store.get("tuneSamples", []), check: null };
+function applyTuning(){
+  const s = [...tuning.samples].sort((a, b) => a - b);
+  TUNE.cents = s.length >= 4 ? s[s.length >> 1] : 0;
+  mic.det?.setTuning(TUNE.cents);
+  renderTuning();
+}
+function learnTuning(cents){
+  if (!isFinite(cents) || Math.abs(cents) > 120) return;
+  tuning.samples.push(Math.round(cents)); if (tuning.samples.length > 25) tuning.samples.shift();
+  store.set("tuneSamples", tuning.samples); applyTuning();
+}
+// Called for every note the pitch detector hears clearly. The exact pitch is measured a moment later from the
+// note's fundamental (measureFundamental), once the sound holds only the new note.
+function tuningHeard(r, midi, t){
+  if (r.raw == null || r.q < 0.9 || r.rms < r.gate * 3) return;
+  let ref = null;
+  if (tuning.check){ if (Math.abs(r.raw - 69) < 1.2) ref = 69; }   // the guided check: the A above middle C
+  else {
+    // the note you were meant to play, when the exercise knows it; in free play the note it was named as
+    const want = activePractice()?.want || (currentView === "songs" && songState.song.hands === 1 ? req(songState.song.steps[songState.pos]).map(n => n.midi) : currentView === "quiz" ? [quiz.target] : []);
+    ref = want.length ? want.find(w => Math.abs(r.raw - w) < 0.6) ?? null : midi;
+  }
+  if (ref == null) return;
+  tuning.pending = { ref, midi, guess: 440 * Math.pow(2, (r.raw - 69) / 12), due: t + 0.1 };
+}
+// from the microphone loop: measure a pending note once its moment has come
+function tuningMeasure(t){
+  const p = tuning.pending; if (!p || t < p.due) return;
+  tuning.pending = null;
+  const x = new Float32Array(mic.an2.fftSize); mic.an2.getFloatTimeDomainData(x);
+  const f = measureFundamental(x, ctx.sampleRate, p.guess); if (!f) return;
+  const cents = 1200 * Math.log2(f / 440) - (p.ref - 69) * 100;
+  if (tuning.check && p.ref === 69){ tuning.check.push(cents); renderTuning(); if (tuning.check.length >= 3) finishTuningCheck(); return; }
+  learnTuning(cents);
+  tuning.recent.push({ m: p.midi, c: Math.round(cents - TUNE.cents) }); if (tuning.recent.length > 12) tuning.recent.shift();
+  renderTuning();
+}
+tuning.recent = [];
+function verdict(c){
+  const a = Math.abs(c), dir = c < 0 ? "matalalla" : "korkealla";
+  if (a < 10) return `Piano on hyvässä vireessä (${c >= 0 ? "+" : "−"}${a} snt).`;
+  if (a < 25) return `Piano on ${a} senttiä ${dir}. Se ei haittaa harjoittelua.`;
+  if (a < 50) return `Piano on ${a} senttiä ${dir}, eli selvästi epävireessä. Sovellus ottaa sen huomioon, mutta pianon virittäminen kannattaa.`;
+  return `Piano on ${a} senttiä ${dir}, eli yli puolen sävelaskeleen verran. Sovellus ottaa sen huomioon, mutta piano kannattaa virittää.`;
+}
+function renderTuning(){
+  const el = $("tune-now"); if (!el) return;
+  el.textContent = tuning.check ? `Soita A4 (A keski-C:n yläpuolella): ${tuning.check.length}/3 kuultu.`
+    : tuning.samples.length >= 4 ? verdict(TUNE.cents) + ` Arvio perustuu ${tuning.samples.length} säveleen.`
+    : "Ei vielä tietoa. Paina Tarkista vire tai soita muutama sävel mikrofonin kuunnellessa.";
+  $("tune-notes").innerHTML = tuning.recent.length ? "Viimeksi soitetut sävelet pianon omaan vireeseen verrattuna: " + tuning.recent.map(x =>
+    `<span class="tune-chip ${Math.abs(x.c) > 20 ? "bad" : Math.abs(x.c) > 10 ? "warn" : ""}">${nameOf(x.m)}${octOf(x.m)} ${x.c >= 0 ? "+" : "−"}${Math.abs(x.c)}</span>`).join(" ") : "";
+}
+async function startTuningCheck(){
+  if (!mic.on) await startMic(); if (!mic.on) return;
+  tuning.check = []; renderTuning();
+}
+function finishTuningCheck(){
+  const c = [...tuning.check].sort((a, b) => a - b)[1];
+  tuning.check = null;
+  tuning.samples = [Math.round(c), Math.round(c), Math.round(c), Math.round(c)]; store.set("tuneSamples", tuning.samples);
+  applyTuning();
+}
+$("tune-check").onclick = startTuningCheck;
+$("tune-reset").onclick = () => { tuning.samples = []; tuning.recent = []; tuning.check = null; store.set("tuneSamples", []); applyTuning(); };
+
 /* ---------- routing ---------- */
 let currentView = "songs";
 const VIEWS = ["songs","quiz","free","chords","video"];
@@ -2112,7 +2222,7 @@ document.querySelector(".tabs").addEventListener("click", e => { const b = e.tar
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (VIEWS.includes(h)) show(h); });
 
 songState.song = SONGS.find(s => s.id === store.get("song", "ukko")) || SONGS[1];
-renderPlayer(); renderPracticeBar(); renderSongList(); renderProgList(); renderVidSources(); renderVidBar(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
+applyTuning(); renderPlayer(); renderPracticeBar(); renderSongList(); renderProgList(); renderVidSources(); renderVidBar(); setProgStatus("Aloita vasemman käden bassosävelestä.", ""); newTarget();
 const h0 = location.hash.slice(1); show(VIEWS.includes(h0) ? h0 : "songs");
 // the microphone was on last time: switch it on again, at once when the permission is already granted,
 // otherwise at the first tap (one question per visit at most)

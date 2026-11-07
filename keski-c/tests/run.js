@@ -57,6 +57,19 @@ console.log("\n— Videotila");
   check(true, "videotila · jokaisen kappaleen jokainen nuotti on oma palkkinsa");
 }
 
+/* 1c. A piano that is not at standard pitch */
+console.log("\n— Pianon vire");
+{
+  const { render } = require("./lib.js");
+  let worst = 0;
+  for (const m of [45, 60, 69, 84]) for (const [d, B] of [[-40, 0.0004], [-40, 0.0009], [25, 0.0009], [0, 0.0004]]){
+    const x = render([{ t: 0, len: 2, notes: [{ midi: m, dur: 1.5, hand: "R" }] }], { sr: 48000, bpm: 60, detune: d, inharm: B, noise: 0.004 });
+    const s0 = Math.floor(0.62 * 48000), f = lib.measureFundamental(x.subarray(s0, s0 + 4096), 48000, 440 * 2 ** ((m - 69) / 12 + (d + 15) / 1200));
+    worst = Math.max(worst, Math.abs(1200 * Math.log2(f / 440) - (m - 69) * 100 - d));
+  }
+  check(worst < 3, "vireen mittaus perussävelestä", `suurin virhe ${worst.toFixed(1)} senttiä (A2–C6, −40…+25 snt, venyvät kielet)`);
+}
+
 /* 2. Single notes (one-hand songs, note reading) */
 console.log("\n— Yksittäiset sävelet");
 const single = (label, seq, opt) => {
@@ -100,6 +113,21 @@ for (const id of twoHand){
     const r = listen(steps, { bpm: 72, swap: { step: si, from: note.midi, to: note.midi + 1 } });
     check(r.errs.length > 0 && r.errs[0].step === si, `${id} · väärä sävel askeleessa ${si}`, `${nm(note.midi)} → ${nm(note.midi + 1)}: ${r.errs.length ? "huomattiin askeleessa " + r.errs[0].step : "ei huomattu"}`);
   }
+}
+
+/* 3b. Out of tune: once the app has learned the piano's tuning, two hands and chords are heard as in tune */
+console.log("\n— Epävireinen piano mikrofonilla");
+for (const [id, opt] of [["oodi2", { detune: -40, inharm: 0.0009 }], ["elise", { detune: 30, inharm: 0.0009 }], ["preludi", { detune: -80, inharm: 0.0009 }]]){
+  const r = listen(stepsOf(id), { bpm: 72, tuned: true, ...opt });
+  check(r.pos === r.total && !r.errs.length, `${id} · ${opt.detune > 0 ? "+" : ""}${opt.detune} snt`, `${r.pos}/${r.total} askelta`);
+}
+{
+  const p = lib.PROGRESSIONS[0], bl = p.pattern.split(" ").length * p.beat, st = [];
+  for (let r = 0; r < 2; r++) p.steps.forEach(s => st.push({ ...s, t: s.t + r * p.bars.length * bl }));
+  const r = listen(st, { bpm: 120, tuned: true, detune: -40, inharm: 0.0009 }, "chords");
+  check(r.pos === r.total && !r.errs.length, `${p.id} · −40 snt`, `${r.pos}/${r.total} askelta`);
+  const w = listen(st, { bpm: 120, tuned: true, detune: -40, inharm: 0.0009, swap: { step: 1, from: 69, to: 70 } }, "chords");
+  check(w.errs.length > 0 && w.errs[0].step === 1, `${p.id} · −40 snt, väärä sävel huomataan`);
 }
 
 /* 4. Chord progressions: two rounds in a row */
