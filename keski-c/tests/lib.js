@@ -19,7 +19,7 @@ const lib = new Function(
   between("// CHORD-START", "// CHORD-END") +
   between("// PROG-START", "// PROG-END") +
   between("// MIDI-START", "// MIDI-END") +
-  ";return { parseTok, buildSteps, createDetector, chordCheck, createChordListener, FLUX_SONG, FLUX_CHORDS, CHORDS, PROGRESSIONS, stepsToEvents, eventsToBars, onsetsOf, barRect, parseMidi, TUNE, measureFundamental };"
+  ";return { parseTok, buildSteps, createDetector, chordCheck, createChordListener, FLUX_SONG, FLUX_CHORDS, CHORDS, PROGRESSIONS, stepsToEvents, eventsToBars, onsetsOf, barRect, parseMidi, TUNE, measureFundamental, createFluxOnset };"
 )();
 
 // Song data straight from the SONGS list
@@ -103,24 +103,27 @@ function listen(steps, opt = {}, mode = "song"){
     errs.push({ step: pos, missing: res.missing });
   }, () => mode === "chords" ? lib.FLUX_CHORDS : lib.FLUX_SONG);
   for (let e = F; e < x.length && pos < steps.length; e += hop){
-    const t = e/sr, r = det.process(x.subarray(e - 2048, e), t);
-    L.frame(t, fftDb(x.subarray(e - F, e), F), r.events.some(ev => ev.type === "onset"), r.rms > r.gate);
+    const t = e/sr, spec = fftDb(x.subarray(e - F, e), F), r = det.process(x.subarray(e - 2048, e), t, { spec, binHz: sr/F, onset: false });
+    L.frame(t, spec, r.events.some(ev => ev.type === "onset"), r.rms > r.gate);
   }
   return { pos, total: steps.length, errs };
 }
 
 // Single notes through the pitch detector (one-hand songs, note reading, free play)
-function detectNotes(seq, { sr = 48000, noise = 0.002, amp = 0.3, agc = false, thump = false, beat = 0 } = {}){
+// weakFund: the fundamental at this fraction of its strength (a phone microphone picks up little of it);
+// pedal: notes keep ringing after their written length; inharm: string stretch
+// weak2: the 2nd partial's strength too; oddWeak: odd partials (3rd, 5th) at this fraction (an uneven microphone)
+function detectNotes(seq, { sr = 48000, noise = 0.002, amp = 0.3, agc = false, thump = false, beat = 0, weakFund = 1, weak2 = 1, oddWeak = 1, pedal = false, inharm = 0.0004, flux = true } = {}){
   const total = seq.reduce((a, s) => Math.max(a, s[1] + s[2] + 0.5), 0), n = Math.floor(total*sr);
   const x = new Float32Array(n); let seed = 1; const rnd = () => ((seed = seed*16807 % 2147483647)/2147483647 - 0.5);
   for (const [m, t0, dur, a = amp] of seq){
     const f = 440*2**((m - 69)/12), i0 = Math.floor(t0*sr), i1 = Math.min(n, Math.floor((t0 + dur)*sr) + Math.floor(0.15*sr));
     for (let k = 1; k <= 12; k++){
-      const fk = f*k*Math.sqrt(1 + 0.0004*k*k); if (fk > sr/2.2) break;
-      const ak = a/Math.pow(k, 1.1)*(k === 1 && m < 52 ? 0.4 : 1), dec = 1.2 + k*0.6;
-      for (let i = i0; i < i1; i++){
+      const fk = f*k*Math.sqrt(1 + inharm*k*k); if (fk > sr/2.2) break;
+      const ak = a/Math.pow(k, 1.1)*(k === 1 && m < 52 ? 0.4 : 1)*(k === 1 ? weakFund : k === 2 ? weak2 : k % 2 ? oddWeak : 1), dec = (1.2 + k*0.6)*(pedal ? 0.5 : 1);
+      for (let i = i0; i < (pedal ? n : i1); i++){
         const t = (i - i0)/sr; let env = Math.min(1, t/0.004)*Math.exp(-dec*t);
-        if (t > dur) env *= Math.exp(-(t - dur)*25);
+        if (t > dur && !pedal) env *= Math.exp(-(t - dur)*25);
         x[i] += ak*env*(beat ? 0.7*Math.sin(2*Math.PI*fk*t + k) + 0.3*Math.sin(2*Math.PI*(fk + beat)*t) : Math.sin(2*Math.PI*fk*t + k));
       }
     }
@@ -128,9 +131,12 @@ function detectNotes(seq, { sr = 48000, noise = 0.002, amp = 0.3, agc = false, t
   if (thump) for (const [, t0, , a = amp] of seq){ const i0 = Math.floor(t0*sr); for (let i = i0; i < Math.min(n, i0 + sr*0.02); i++) x[i] += a*0.15*rnd()*2*Math.exp(-(i - i0)/sr*250); }
   for (let i = 0; i < n; i++) x[i] += noise*rnd()*2;
   if (agc){ let env = 0.01; for (let i = 0; i < n; i++){ const v = Math.abs(x[i]); env += (v - env)*(v > env ? 0.002 : 0.00003); x[i] *= Math.min(30, 0.25/Math.max(env, 1e-3)); } }
-  const d = lib.createDetector(sr), hop = Math.round(sr/60), out = [];
-  for (let e = d.size + 2048; e < n; e += hop){
-    const r = d.process(x.subarray(e - 2048, e), e/sr);
+  const d = lib.createDetector(sr), hop = Math.round(sr/60), out = [], F = 4096, fl = lib.createFluxOnset(sr/F);
+  let last = { rms: 0, gate: 1 };
+  for (let e = Math.max(d.size + 2048, F); e < n; e += hop){
+    const spec = flux ? fftDb(x.subarray(e - F, e), F) : null;
+    const r = d.process(x.subarray(e - 2048, e), e/sr, spec ? { spec, binHz: sr/F, onset: fl(e/sr, spec, last.rms > last.gate) } : undefined);
+    last = r;
     for (const ev of r.events) if (ev.type === "on") out.push(ev.midi);
   }
   return out;

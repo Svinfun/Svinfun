@@ -85,6 +85,12 @@ single("mustat koskettimet", [61,63,66,68,70,73,75].map((m, i) => [m, 0.3 + i*0.
 single("44.1 kHz", [62,67].map((m, i) => [m, 0.3 + i*0.7, 0.6]), { sr: 44100 });
 single("toistot ilman taukoa + puhelin", ukko.map((m, i) => [m, 0.3 + i*0.4, 0.4]), { agc: true, thump: true });
 single("pitkä sävel, kielten huojunta", [[60, 0.3, 3.5]], { beat: 3 });
+// a phone microphone: weak fundamental and odd partials on high notes (read an octave too high before),
+// low strings, the pedal (notes keep ringing)
+single("puhelin: E5–Dis5 nopeasti, heikko perussävel", [76,75,76,75,76,75,76,75].map((m, i) => [m, 0.3 + i*0.25, 0.25]), { weakFund: 0.05, oddWeak: 0.1, inharm: 0.0008 });
+single("aito E6 pysyy E6:na, myös E5:n jälkeen", [[76, 0.3, 0.5], [88, 0.9, 0.5], [88, 1.5, 0.5]], { inharm: 0.0008 });
+single("puhelin: matalat A2, G2, E2", [[45, 0.3, 1], [43, 1.5, 1], [40, 2.7, 1]], { weakFund: 0.05, weak2: 0.3, inharm: 0.0009 });
+single("pedaali: C4 D4 E4 F4 G4", [60,62,64,65,67].map((m, i) => [m, 0.3 + i*0.7, 0.6]), { pedal: true, agc: true, inharm: 0.0008 });
 if (FULL){
   const sc = [60,62,64,65,67,69,71,72,74,76,77,79,81,83,84,83,81,79,77,76,74,72,71,69,67,65,64,62];
   const long = []; for (let r = 0; r < 4; r++) sc.forEach((m, i) => long.push([m, 0.3 + (r*sc.length + i)*0.22, 0.24]));

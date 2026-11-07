@@ -1728,10 +1728,31 @@ function createDetector(sr){
     for (let tau=minTau; tau<=maxTau; tau++){
       if (cm[tau] < 0.15){ while (tau < maxTau && cm[tau+1] < cm[tau]) tau++; best = tau; break; }
     }
-    if (best < 1) return null;
+    if (best < 1){
+      // no clear dip (low strings are less regular): take the deepest one if it is still fairly clear
+      let lo = minTau; for (let tau=minTau+1; tau<=maxTau; tau++) if (cm[tau] < cm[lo]) lo = tau;
+      if (cm[lo] < 0.3 && lo > minTau && lo < maxTau) best = lo; else return null;
+    }
     const a = cm[best-1], b = cm[best], c = cm[best+1], den = a - 2*b + c;
     const shift = den > 1e-9 ? Math.max(-1, Math.min(1, (a - c)/(2*den))) : 0;
     return { f: sr/(best+shift), q: 1 - b };
+  }
+  // A phone microphone can pick up a high note's 2nd partial more strongly than the note itself, so the reading
+  // lands an octave too high. If the spectrum has peaks at the octave below and its odd partials (1st, 3rd, 5th),
+  // which the higher note cannot have, the lower octave is the note.
+  // Only high readings are checked (that is where it happens), and the lower note's own fundamental must sound
+  // clearly, with its 3rd or 5th partial: notes still ringing under the pedal can't fake that as easily.
+  function octaveBelow(f, spec, binHz){
+    if (!spec || f < 450) return false;
+    let peak = -200; for (let i = 3; i < spec.length; i++) if (spec[i] > peak) peak = spec[i];
+    const level = h => {
+      const fh = h * f/2 * Math.sqrt(1 + 0.0004*h*h), b = Math.round(fh/binHz);
+      if (b < 2 || b + 3 >= spec.length) return -200;
+      const w = Math.max(1, Math.round(fh*0.012/binHz));
+      let arg = b - w; for (let i = b - w + 1; i <= b + w; i++) if (spec[i] > spec[arg]) arg = i;
+      return spec[arg] > spec[arg-1] && spec[arg] > spec[arg+1] ? spec[arg] : -200;
+    };
+    return level(1) > peak - 30 && Math.max(level(3), level(5)) > peak - 35;
   }
   return {
     size: N,
@@ -1739,8 +1760,10 @@ function createDetector(sr){
     // the piano's own tuning in cents from A = 440 Hz: notes are named against it
     setTuning(c){ tune = c || 0; },
     reset(){ sounding = null; armed = null; cand = null; },
-    // x: newest samples at the end. t: time in seconds. Returns onset and note on/off events.
-    process(x, t){
+    // x: newest samples at the end. t: time in seconds. ext (optional): { spec, binHz, onset } from the spectrum,
+    // for the octave check and for strikes the level alone misses (a note struck under the pedal).
+    // Returns onset and note on/off events.
+    process(x, t, ext){
       const off = x.length - N; let e = 0;
       for (let i = x.length-512; i < x.length; i++) e += x[i]*x[i];
       const rms = Math.sqrt(e/512);
@@ -1753,22 +1776,34 @@ function createDetector(sr){
       const gate = Math.max(floor*2.5, 0.03*Math.pow(0.06, sens));
       const events = [];
       const p = rms > gate ? yin(x, off) : null;
+      if (p && ext && octaveBelow(p.f, ext.spec, ext.binHz)) p.f /= 2;
       let m = null, cents = 0, raw = null;
       if (p){ raw = 69 + 12*Math.log2(p.f/440); const n = raw - tune/100; m = Math.round(n); cents = Math.round((n-m)*100); }
       // a sharp rise in level = a new key strike (also catches the same key played again)
       // compared with the loudest of the last 3 frames, so beating in a ringing string is not a new strike
       const louder = rms > Math.max(...recent)*1.4;
       const brighter = hf > Math.max(...recentHf)*1.8 && hf > hfFloor*4;
-      if (rms > gate && (louder || brighter) && t - lastOnset > 0.08){ armed = { t, last: null, n: 0 }; lastOnset = t; cand = null; events.push({ type:"onset" }); }
+      if (rms > gate && (louder || brighter || ext?.onset) && t - lastOnset > 0.08){ armed = { t, last: null, n: 0, seen: new Map() }; lastOnset = t; cand = null; events.push({ type:"onset" }); }
       recent.shift(); recent.push(rms); recentHf.shift(); recentHf.push(hf);
       if (armed){
-        if (m != null && t - armed.t >= 0.03){ // wait until the analysis window holds mostly the new note
+        let pick = null;
+        // wait until the analysis window holds mostly the new note (a little longer for high notes, whose
+        // octave check needs the new note's own spectrum)
+        if (m != null && t - armed.t >= (m >= 72 ? 0.06 : 0.03)){
           if (m === armed.last) armed.n++; else { armed.last = m; armed.n = 1; }
-          if (armed.n >= 2){
-            if (sounding != null) events.push({ type:"off", midi: sounding });
-            sounding = m; events.push({ type:"on", midi: m, level: rms }); armed = null;
-          }
-        } else if (t - armed.t > 0.2) armed = null;
+          armed.seen.set(m, (armed.seen.get(m) || 0) + 1);
+          if (armed.n >= 2) pick = m;
+        }
+        // no two readings in a row yet (a low string's readings jump): after a while take the most common one,
+        // and the lower octave when both appear, since a reading is far more often an octave too high than too low
+        if (pick == null && t - armed.t > 0.18 && armed.seen.size){
+          let best = null; for (const [k, c] of armed.seen) if (best == null || c > armed.seen.get(best) || (c === armed.seen.get(best) && k < best)) best = k;
+          if (armed.seen.get(best) >= 2 || t - armed.t > 0.3) pick = armed.seen.has(best - 12) ? best - 12 : best;
+        }
+        if (pick != null){
+          if (sounding != null) events.push({ type:"off", midi: sounding });
+          sounding = pick; events.push({ type:"on", midi: pick, level: rms }); armed = null;
+        } else if (t - armed.t > 0.35) armed = null;
       } else if (sounding != null && m != null && m !== sounding && p.q > 0.9){
         // legato: pitch changed without a clear attack
         if (cand && cand.m === m) cand.n++; else cand = { m, n: 1 };
@@ -1850,6 +1885,21 @@ function chordCheck(base, now, binHz, midis){
     maybe: missing.length > 0 && maybe.length === missing.length };
 }
 
+// Spectral flux strikes for the single-note path: new partials appearing, even when the level hardly rises
+// (a key struck under the pedal, or the same note struck again while it still rings).
+function createFluxOnset(binHz){
+  const lim = Math.floor(5000/binHz), hist = []; let prev = null, prevFlux = 0, last = -1;
+  return (t, spec, audible) => {
+    let peak = -200; for (let i=3; i<=lim; i++) if (spec[i] > peak) peak = spec[i];
+    let flux = 0;
+    if (prev){ const fl = peak - 50; for (let i=3; i<=lim; i++) if (spec[i] > fl){ const d = spec[i] - Math.max(prev[i], fl); if (d > 0) flux += d; } flux /= lim; }
+    const mean = hist.length ? hist.reduce((a,b) => a+b, 0)/hist.length : 0;
+    const on = audible && flux > Math.max(FLUX_SONG.min, FLUX_SONG.k*mean) && flux > prevFlux && t - last > 0.09;
+    if (on) last = t;
+    hist.push(flux); if (hist.length > 30) hist.shift(); prevFlux = flux; prev = spec;
+    return on;
+  };
+}
 // Queues one check per key strike. Each check compares the spectrum ~0.1 s after the strike with one from
 // just before it. A failed check is only reported if no later strike is waiting, so a chord played a little
 // unevenly (one hand slightly later) is judged by the later strike.
@@ -1949,6 +1999,7 @@ async function startMicNow(){
   mic.chord = createChordListener(c.sampleRate/mic.an2.fftSize,
     () => activePractice()?.want ?? null,
     res => activePractice()?.heard(res), () => currentView === "chords" || (currentView === "video" && vid.loop) ? FLUX_CHORDS : FLUX_SONG);
+  mic.flux = createFluxOnset(c.sampleRate / mic.an2.fftSize); mic.lastRms = 0; mic.lastGate = 1;
   mic.det = createDetector(c.sampleRate); mic.det.setSensitivity((micSens.value-1)/9); mic.det.setTuning(TUNE.cents);
   mic.buf = new Float32Array(mic.an.fftSize);
   mic.on = true; micBtn.setAttribute("aria-pressed", "true"); $("mic-label").textContent = "Kuuntelee";
@@ -1976,7 +2027,10 @@ function micLoop(){
   if (!mic.on) return;
   const t = ctx.currentTime;
   mic.an.getFloatTimeDomainData(mic.buf);
-  const r = mic.det.process(mic.buf, t);
+  const spec = new Float32Array(mic.an2.frequencyBinCount); mic.an2.getFloatFrequencyData(spec);
+  const binHz = ctx.sampleRate / mic.an2.fftSize, audible0 = mic.lastRms > mic.lastGate;
+  const r = mic.det.process(mic.buf, t, { spec, binHz, onset: mic.flux(t, spec, audible0) });
+  mic.lastRms = r.rms; mic.lastGate = r.gate;
   if (mt.active) mtFrame(t, r);
   tuningMeasure(t);
   const twoHand = !!activePractice();
@@ -1984,7 +2038,6 @@ function micLoop(){
   $("mic-level").style.width = toPct(r.rms) + "%"; $("mic-gate").style.left = toPct(r.gate) + "%";
   const busy = synthBusy() || songState.playing || prog.playing;
   if (twoHand){
-    const spec = new Float32Array(mic.an2.frequencyBinCount); mic.an2.getFloatFrequencyData(spec);
     if (busy) mic.chord.reset(); else mic.chord.frame(t, spec, r.events.some(ev => ev.type === "onset"), r.rms > r.gate);
   } else mic.chord.reset();
   if (busy) mic.det.reset();
