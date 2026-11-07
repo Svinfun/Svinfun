@@ -212,6 +212,9 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
 .vid-transport{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 12px;background:#101315}
 #vid-seek{flex:1 1 160px;accent-color:#E0A21B}
 .vid-time{color:#AEB6B8;font-variant-numeric:tabular-nums;font-size:.85rem}
+.mictest{margin-top:16px;padding-top:14px;border-top:1px solid var(--rule)}
+.mt-step{margin:0 0 10px;max-width:65ch;font-size:1.05rem}
+.mt-report{white-space:pre-wrap;word-break:break-word;font-size:.78rem;background:var(--bg);border:1px solid var(--rule);border-radius:8px;padding:10px;max-height:320px;overflow:auto;user-select:text}
 .celebrate{margin-top:10px;padding:12px 14px;border-radius:10px;background:color-mix(in srgb, var(--ok) 15%, transparent);color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -314,6 +317,19 @@ kbd{font-family:inherit;font-size:.82em;border:1px solid var(--rule);border-bott
     <div class="quiz" style="margin-top:12px">
       <div class="bigname" id="free-name">–</div>
       <div class="staffbox"><svg class="staff" id="free-staff" viewBox="0 0 640 130"></svg></div>
+    </div>
+    <div class="mictest">
+      <button class="btn primary" id="mt-open">Mikrofonitesti oikealla pianolla</button>
+      <div id="mt-panel" hidden>
+        <p class="mt-step" id="mt-step"></p>
+        <div class="row"><button class="btn primary" id="mt-go">Aloita</button><span class="status" id="mt-count"></span></div>
+        <pre class="mt-report" id="mt-report" hidden></pre>
+        <div class="row" id="mt-done" hidden>
+          <button class="btn primary" id="mt-copy">Kopioi tulokset</button>
+          <button class="btn" id="mt-wav">Lataa äänite (WAV)</button>
+          <button class="btn" id="mt-again">Tee testi uudelleen</button>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -1891,6 +1907,7 @@ function micLoop(){
   const t = ctx.currentTime;
   mic.an.getFloatTimeDomainData(mic.buf);
   const r = mic.det.process(mic.buf, t);
+  if (mt.active) mtFrame(t, r);
   const twoHand = !!activePractice();
   const toPct = v => Math.max(0, Math.min(100, (Math.log10(Math.max(v, 1e-4)) + 4) / 4 * 100));
   $("mic-level").style.width = toPct(r.rms) + "%"; $("mic-gate").style.left = toPct(r.gate) + "%";
@@ -1917,6 +1934,123 @@ function micLoop(){
 }
 micBtn.onclick = () => mic.on ? stopMic() : startMic();
 micSens.oninput = () => { store.set("sens", +micSens.value); mic.det?.setSensitivity((micSens.value-1)/9); };
+
+/* ---------- microphone test with a real piano ---------- */
+// A guided set of short exercises that are hard for the listening (repeated notes, low and high notes, a chord,
+// a fast run, the pedal). It records what the app heard, gives a short report to copy, and the recording as a WAV
+// file, so the listening can be tuned to a real piano.
+const MT_STEPS = [
+  { id: "hiljaa", text: "Ole hiljaa ja pidä kädet irti koskettimista.", secs: 3 },
+  { id: "CDEFG", text: "Soita yksi kerrallaan, rauhallisesti: C, D, E, F ja G keski-C:stä ylöspäin.", secs: 10, want: [60, 62, 64, 65, 67] },
+  { id: "toisto", text: "Soita keski-C neljä kertaa peräkkäin, noin sekunnin välein.", secs: 8, want: [60, 60, 60, 60] },
+  { id: "laajuus", text: "Soita matala A (A2, kaksi oktaavia keski-C:n alapuolella oleva A) ja sitten korkea C (C6, kaksi oktaavia keski-C:n yläpuolella).", secs: 8, want: [45, 84] },
+  { id: "sointu", text: "Soita kolme kertaa sointu, kaikki sävelet yhtä aikaa: vasen käsi C3 (oktaavi keski-C:n alapuolella), oikea käsi E4 ja G4.", secs: 10, chord: [48, 64, 67], times: 3 },
+  { id: "nopea", text: "Soita nopeasti vuorotellen E5 ja Dis5 (musta kosketin E:n vasemmalla), yhteensä kahdeksan säveltä, kuten Für Elisen alussa.", secs: 8, want: [76, 75, 76, 75, 76, 75, 76, 75] },
+  { id: "pedaali", text: "Paina oikea pedaali pohjaan ja pidä se siinä. Soita C4, D4 ja E4, ja päästä pedaali lopuksi.", secs: 9, want: [60, 62, 64] },
+];
+const mt = { step: -1, active: false, rec: [], results: [], proc: null, cur: null, timer: 0, settings: {} };
+const noteTxt = m => nameOf(m) + octOf(m);
+async function mtOpen(){
+  $("mt-panel").hidden = false; $("mt-open").hidden = true;
+  if (!mic.on) await startMic();
+  if (!mic.on){ $("mt-step").textContent = "Mikrofonia ei saatu käyttöön, joten testiä ei voi tehdä."; return; }
+  try { mt.settings = mic.stream.getAudioTracks()[0].getSettings(); } catch (e) { mt.settings = {}; }
+  // record the raw sound too, for the WAV file
+  if (!mt.proc){
+    mt.proc = ctx.createScriptProcessor(4096, 1, 1);
+    const sink = ctx.createGain(); sink.gain.value = 0;
+    mic.src.connect(mt.proc); mt.proc.connect(sink); sink.connect(ctx.destination);
+    mt.proc.onaudioprocess = e => { if (mt.active) mt.rec.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+  }
+  mt.step = 0; mt.results = []; mt.rec = []; mtShow();
+}
+function mtShow(){
+  const s = MT_STEPS[mt.step];
+  $("mt-step").innerHTML = `<b>${mt.step + 1}/${MT_STEPS.length}</b> ${s.text}`;
+  $("mt-go").hidden = false; $("mt-go").textContent = mt.step === 0 ? "Aloita" : "Aloita tämä vaihe"; $("mt-count").textContent = "";
+}
+function mtStart(){
+  const s = MT_STEPS[mt.step];
+  mt.cur = { id: s.id, heard: [], onsets: 0, maxRms: 0, minGate: 1, floor: 1, chordOk: 0, chordMiss: [], t0: ctx.currentTime };
+  if (s.chord){
+    mt.listener = createChordListener(ctx.sampleRate / mic.an2.fftSize, () => s.chord, res => {
+      if (res.ok) mt.cur.chordOk++; else if (!res.unsure && !res.maybe) mt.cur.chordMiss.push(res.missing.map(noteTxt).join("+"));
+    });
+  } else mt.listener = null;
+  mt.rec.push(new Float32Array(Math.round(ctx.sampleRate * 0.3)));   // a short gap marks the step in the recording
+  mt.active = true; $("mt-go").hidden = true;
+  let left = s.secs; $("mt-count").textContent = `Soita nyt · ${left} s`;
+  mt.timer = setInterval(() => { left--; $("mt-count").textContent = left > 0 ? `Soita nyt · ${left} s` : ""; if (left <= 0) mtEnd(); }, 1000);
+}
+// called from the microphone loop for every frame while a step records
+function mtFrame(t, r){
+  const c = mt.cur; if (!c) return;
+  c.maxRms = Math.max(c.maxRms, r.rms); c.minGate = Math.min(c.minGate, r.gate);
+  for (const ev of r.events){
+    if (ev.type === "onset") c.onsets++;
+    if (ev.type === "on") c.heard.push({ m: ev.midi, cents: r.midi === ev.midi ? r.cents : null, t: t - c.t0 });
+  }
+  if (mt.listener){
+    const spec = new Float32Array(mic.an2.frequencyBinCount); mic.an2.getFloatFrequencyData(spec);
+    mt.listener.frame(t, spec, r.events.some(e => e.type === "onset"), r.rms > r.gate);
+  }
+}
+function mtEnd(){
+  clearInterval(mt.timer); mt.active = false;
+  const s = MT_STEPS[mt.step], c = mt.cur; mt.cur = null;
+  let line = `${mt.step + 1} ${s.id}: `, ok = null, say = "";
+  const heard = c.heard.map(h => noteTxt(h.m) + (h.cents != null ? `(${h.cents >= 0 ? "+" : ""}${h.cents})` : "")).join(" ") || "–";
+  if (s.want){
+    const got = c.heard.map(h => h.m);
+    ok = got.length === s.want.length && got.every((m, i) => m === s.want[i]);
+    const octOk = !ok && got.length === s.want.length && got.every((m, i) => (m - s.want[i]) % 12 === 0);
+    line += `odotettu ${s.want.map(noteTxt).join(" ")} · kuultu ${heard} · iskuja ${c.onsets}${octOk ? " · oikeat nimet, eri oktaavi" : ""}`;
+    say = `Kuulin: ${heard}`;
+  } else if (s.chord){
+    ok = c.chordOk >= s.times;
+    line += `sointu ${s.chord.map(noteTxt).join("+")} tunnistettu ${c.chordOk}/${s.times}${c.chordMiss.length ? " · puuttui: " + c.chordMiss.join(", ") : ""} · iskuja ${c.onsets} · yksittäin kuultu ${heard}`;
+    say = `Sointu tunnistettiin ${c.chordOk} kertaa ${s.times}:stä.`;
+  } else {
+    line += `kohina ${c.maxRms.toFixed(4)} · iskuja ${c.onsets} (pitäisi olla 0) · kuultu ${heard}`;
+    ok = c.onsets === 0 && !c.heard.length; say = ok ? "Hiljaisuus kuulosti hiljaisuudelta." : `Hiljaisuudessa kuulin ${c.onsets} iskua.`;
+  }
+  line += ` · voimakkuus max ${c.maxRms.toFixed(3)}, portti ${c.minGate.toFixed(4)}`;
+  mt.results.push((ok == null ? "" : ok ? "OK " : "XX ") + line);
+  mt.step++;
+  if (mt.step < MT_STEPS.length){ mtShow(); $("mt-count").textContent = say; }
+  else mtReport();
+}
+function mtReport(){
+  const st = mt.settings, ua = navigator.userAgent;
+  const dev = /iPhone/.test(ua) ? "iPhone" : /iPad|Macintosh.*Mobile/.test(ua) ? "iPad" : /Android/.test(ua) ? "Android" : /Mac/.test(ua) ? "Mac" : /Windows/.test(ua) ? "Windows" : "muu";
+  const br = /CriOS|Chrome/.test(ua) ? "Chrome" : /FxiOS|Firefox/.test(ua) ? "Firefox" : /Safari/.test(ua) ? "Safari" : "selain";
+  const head = `Keski-C mikrofonitesti ${new Date().toLocaleString("fi-FI")} · ${dev} ${br} · ${ctx.sampleRate} Hz` +
+    ` · kaiunpoisto ${st.echoCancellation ?? "?"} · kohinanpoisto ${st.noiseSuppression ?? "?"} · tasoitus ${st.autoGainControl ?? "?"} · herkkyys ${micSens.value}`;
+  const ok = mt.results.filter(r => r.startsWith("OK")).length, all = mt.results.filter(r => /^(OK|XX)/.test(r)).length;
+  $("mt-report").textContent = [head, ...mt.results, `Yhteensä ${ok}/${all} onnistui.`].join("\n");
+  $("mt-report").hidden = false; $("mt-done").hidden = false;
+  $("mt-step").innerHTML = `<b>Valmis!</b> ${ok}/${all} vaihetta onnistui. Kopioi tulokset ja liitä ne Claudelle. Jos voit, lataa myös äänite ja liitä se.`;
+  $("mt-go").hidden = true; $("mt-count").textContent = "";
+}
+function mtWav(){
+  const sr = ctx.sampleRate, n = mt.rec.reduce((a, b) => a + b.length, 0);
+  const buf = new ArrayBuffer(44 + n * 2), d = new DataView(buf);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) d.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); d.setUint32(4, 36 + n * 2, true); w(8, "WAVEfmt "); d.setUint32(16, 16, true); d.setUint16(20, 1, true); d.setUint16(22, 1, true);
+  d.setUint32(24, sr, true); d.setUint32(28, sr * 2, true); d.setUint16(32, 2, true); d.setUint16(34, 16, true); w(36, "data"); d.setUint32(40, n * 2, true);
+  let o = 44; for (const ch of mt.rec) for (let i = 0; i < ch.length; i++, o += 2) d.setInt16(o, Math.max(-1, Math.min(1, ch[i])) * 32767, true);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+  a.download = `keski-c-mikrofonitesti-${Date.now()}.wav`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+}
+$("mt-open").onclick = mtOpen;
+$("mt-go").onclick = mtStart;
+$("mt-copy").onclick = async () => {
+  try { await navigator.clipboard.writeText($("mt-report").textContent); $("mt-copy").textContent = "Kopioitu!"; }
+  catch (e){ const r = document.createRange(); r.selectNodeContents($("mt-report")); getSelection().removeAllRanges(); getSelection().addRange(r); $("mt-copy").textContent = "Valittu, kopioi itse"; }
+};
+$("mt-wav").onclick = mtWav;
+$("mt-again").onclick = () => { $("mt-report").hidden = true; $("mt-done").hidden = true; $("mt-copy").textContent = "Kopioi tulokset"; mtOpen(); };
 
 /* ---------- routing ---------- */
 let currentView = "songs";
